@@ -1,0 +1,38 @@
+{
+  "name": "@ricewatch/desktop",
+  "version": "1.0.0",
+  "private": true,
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder --win --mac --linux",
+    "build:win": "electron-builder --win"
+  },
+  "dependencies": {
+    "electron-store": "^10.0.1"
+  },
+  "devDependencies": {
+    "electron": "^35.2.1",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "ph.gov.da.ricewatch",
+    "productName": "RiceWatch",
+    "directories": {
+      "output": "dist"
+    },
+    "files": ["main.cjs", "preload.cjs"],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "app",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "../src/imports/RiceWatch_logo.png"
+    }
+  }
+}
