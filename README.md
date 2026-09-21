@@ -8,7 +8,7 @@ Rice-Based Area Monitoring & Analysis System for the Department of Agriculture (
 |-------|------------|
 | Frontend | React 18 + Vite + MUI (green DA theme preserved) |
 | API | **REST** — Express 5 + JWT auth + Zod validation |
-| Database | **PostgreSQL 16** + Prisma ORM |
+| Database | **PostgreSQL 16 in Docker** + Prisma ORM |
 | Desktop | Electron (wraps the same web UI) |
 
 ## Quick start
@@ -16,7 +16,7 @@ Rice-Based Area Monitoring & Analysis System for the Department of Agriculture (
 ### 1. Prerequisites
 
 - Node.js 20+
-- **PostgreSQL** via [Docker Desktop](#3-start-postgresql-docker) **or** [native install on Windows](docs/DATABASE-SETUP-WINDOWS.md)
+- **Docker Desktop** — the database runs in a container. **pgAdmin is not needed.**
 
 ### 2. Install dependencies
 
@@ -26,45 +26,41 @@ cd server && npm install && cd ..
 cd desktop && npm install && cd ..
 ```
 
-### 3. Start PostgreSQL (Docker)
+### 3. Start Docker Desktop
 
-**Docker Desktop must be running** (Start menu → Docker Desktop → wait until status is *Running*).
+Open **Docker Desktop** and wait until the whale icon is **green** / status is **Running**.
 
-```bash
-npm run db:up
-```
+The compose file creates the `ricewatch` user, password, and database automatically. You do not create them in pgAdmin.
 
-If you see `dockerDesktopLinuxEngine ... cannot find the file`, Docker is installed but not started — see [docs/DATABASE-SETUP-WINDOWS.md](docs/DATABASE-SETUP-WINDOWS.md).
-
-**Without Docker:** install PostgreSQL locally, then skip `db:up` and follow Option B in that doc.
-
-Docker maps Postgres to host port **5435** (avoids conflict if you already have PostgreSQL on 5432/5433).
-
-Copy environment files if needed:
-
-```bash
-copy .env.example .env
-copy server\.env.example server\.env
-```
-
-### 4. Initialize database
-
-```bash
-npm run db:setup
-```
-
-### 5. Run web + API
+### 4. Run web + API
 
 ```bash
 npm run dev
 ```
 
-This starts **both** Vite (port 5173) and the API (port 4001). If you only run `npm run dev:web`, login will fail with proxy `ECONNREFUSED` errors.
+This will:
+
+1. Start the Postgres container (`ricewatch-db`)
+2. Wait until that container is healthy (green)
+3. Create tables and seed demo accounts if the database is empty
+4. Start **both** Vite (port 5173) and the API (port 4001)
+
+If you only run `npm run dev:web`, login will fail with proxy `ECONNREFUSED` errors.
+
+First time only (optional, same as what `npm run dev` does):
+
+```bash
+npm run db:ready
+```
+
+If you see `dockerDesktopLinuxEngine ... cannot find the file`, Docker is installed but not started — see [docs/DATABASE-SETUP-WINDOWS.md](docs/DATABASE-SETUP-WINDOWS.md).
+
+Docker maps Postgres to host port **5435** (avoids conflict if you already have PostgreSQL on 5432/5433).
 
 - Web: http://localhost:5173  
 - API: http://localhost:4001/api/health  
 
-### 6. Desktop app (optional)
+### 5. Desktop app (optional)
 
 With web and API running:
 
@@ -121,12 +117,14 @@ Password reset demo OTP: **123456**
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Web + API (use this) |
+| `npm run dev` | Start Docker DB (if needed) + web + API |
+| `npm run db:ready` | Start Docker Postgres, wait until healthy, create tables, seed if empty |
+| `npm run db:up` | Start Docker Postgres and wait until healthy |
+| `npm run db:setup` | Prisma push + seed (container must already be up) |
 | `npm run dev:web` | Web only (Vite) |
 | `npm run dev:api` | API only |
 | `npm run dev:desktop` | Web + API + Electron |
 | `npm run build` | Production web build |
-| `npm run db:setup` | Prisma push + seed |
 
 ## Project structure
 

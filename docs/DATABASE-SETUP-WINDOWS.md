@@ -1,18 +1,45 @@
 # PostgreSQL on Windows (RiceWatch)
 
-## Option A — Docker Desktop (recommended if already installed)
+RiceWatch uses **Postgres in Docker**. When Docker Desktop is green, the app creates the database for you.
 
-The error `dockerDesktopLinuxEngine ... cannot find the file` means **Docker Desktop is not running**.
+**You do not need pgAdmin**, SQL Shell, or a local PostgreSQL install.
 
-1. Open **Docker Desktop** from the Start menu (wait until the whale icon says **Running**).
-2. In PowerShell, from the project folder:
+## Every time you run the project
+
+1. Open **Docker Desktop** (Start menu).
+2. Wait until the whale icon is **green** / status is **Running**.
+3. In PowerShell, from the project folder:
+
+```powershell
+npm run dev
+```
+
+That command starts the `ricewatch-db` container, waits until it is healthy, creates tables if needed, seeds demo users if the database is empty, then starts the web app and API.
+
+Login: `admin@da.gov.ph` / `admin123`
+
+Postgres is on host port **5435** (not 5432), so it will not clash with another PostgreSQL on Windows.
+
+## First-time setup only (optional)
+
+Same as `npm run dev`, but stops after the database is ready:
+
+```powershell
+npm run db:ready
+```
+
+To only start/wait for the container (no Prisma):
 
 ```powershell
 npm run db:up
-npm run db:setup
 ```
 
-RiceWatch uses host port **5435** (not 5432) so it does not clash with another PostgreSQL already installed on Windows.
+## Docker is installed but not green
+
+The error `dockerDesktopLinuxEngine ... cannot find the file` means **Docker Desktop is not running**.
+
+1. Open **Docker Desktop** and wait until it says **Running**.
+2. Run `npm run dev` again.
 
 If the service stays stopped, run PowerShell **as Administrator** once:
 
@@ -22,81 +49,24 @@ Start-Service com.docker.service
 
 Then open Docker Desktop again.
 
----
+## You do not need pgAdmin
 
-## Option B — PostgreSQL without Docker
+`docker-compose.yml` already sets:
 
-### 1. Install PostgreSQL
+- user: `ricewatch`
+- password: `ricewatch_secret`
+- database: `ricewatch`
 
-- Download: https://www.postgresql.org/download/windows/
-- During setup, note your **postgres user password** and keep port **5432**.
+Prisma (`npm run db:ready` / `npm run dev`) creates the tables and demo accounts. Do not create the database by hand.
 
-Or with winget (if available):
-
-```powershell
-winget install PostgreSQL.PostgreSQL.16
-```
-
-### 2. Create database and user
-
-Open **SQL Shell (psql)** or pgAdmin and run:
-
-```sql
-CREATE USER ricewatch WITH PASSWORD 'ricewatch_secret';
-CREATE DATABASE ricewatch OWNER ricewatch;
-GRANT ALL PRIVILEGES ON DATABASE ricewatch TO ricewatch;
-```
-
-### 3. Point the API at local Postgres
-
-Edit `server\.env`:
+`server/.env` must keep the Docker URL:
 
 ```env
-DATABASE_URL="postgresql://ricewatch:ricewatch_secret@localhost:5432/ricewatch?schema=public"
-PORT=4001
-JWT_SECRET=ricewatch-dev-jwt-secret-change-in-production
-CORS_ORIGIN=http://localhost:5173
+DATABASE_URL="postgresql://ricewatch:ricewatch_secret@localhost:5435/ricewatch?schema=public"
 ```
 
-If you use only the default `postgres` superuser:
+## Verify
 
-```env
-DATABASE_URL="postgresql://postgres:YOUR_PASSWORD@localhost:5432/ricewatch?schema=public"
-```
+After `npm run dev` is up, open http://localhost:4001/api/health
 
-(Create the `ricewatch` database first: `CREATE DATABASE ricewatch;`)
-
-### 4. Initialize schema and seed data
-
-```powershell
-cd server
-npm run db:generate
-npm run db:push
-npm run db:seed
-cd ..
-```
-
-Or from the project root:
-
-```powershell
-npm run db:setup
-```
-
-(Skip `npm run db:up` — that command is only for Docker.)
-
-### 5. Run the app
-
-```powershell
-npm run dev:all
-```
-
----
-
-## Verify database connection
-
-```powershell
-cd server
-npx prisma db execute --stdin <<< "SELECT 1"
-```
-
-Or open http://localhost:4001/api/health after `npm run dev:api`.
+In Docker Desktop, `ricewatch-db` should show **healthy** (green).

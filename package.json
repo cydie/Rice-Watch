@@ -5,15 +5,18 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n web,api -c green,blue \"npm run dev:web\" \"npm run dev:api\"",
+    "predev": "node scripts/ensure-docker-db.js",
     "dev:web": "vite",
     "dev:api": "npm run dev --prefix server",
     "dev:all": "npm run dev",
     "dev:desktop": "concurrently -n web,api,desktop -c green,blue,magenta \"npm run dev:web\" \"npm run dev:api\" \"npm run start --prefix desktop\"",
+    "predev:desktop": "node scripts/ensure-docker-db.js",
     "build": "vite build",
     "build:api": "npm run build --prefix server",
     "build:desktop": "npm run build && npm run build:win --prefix desktop",
-    "db:up": "docker compose up -d",
+    "db:up": "node scripts/ensure-docker-db.js --wait-only",
     "db:setup": "npm run db:generate --prefix server && npm run db:push --prefix server && npm run db:seed --prefix server",
+    "db:ready": "node scripts/ensure-docker-db.js",
     "preview": "vite preview"
   },
   "dependencies": {
