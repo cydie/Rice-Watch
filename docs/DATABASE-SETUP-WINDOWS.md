@@ -62,7 +62,7 @@ Prisma (`npm run db:ready` / `npm run dev`) creates the tables and demo accounts
 `server/.env` must keep the Docker URL:
 
 ```env
-DATABASE_URL="postgresql://ricewatch:ricewatch_secret@localhost:5435/ricewatch?schema=public"
+DATABASE_URL="postgresql://ricewatch:ricewatch_secret@127.0.0.1:5435/ricewatch?schema=public"
 ```
 
 ## Verify
@@ -70,3 +70,24 @@ DATABASE_URL="postgresql://ricewatch:ricewatch_secret@localhost:5435/ricewatch?s
 After `npm run dev` is up, open http://localhost:4001/api/health
 
 In Docker Desktop, `ricewatch-db` should show **healthy** (green).
+
+## If you see `Database step failed`
+
+The container may already be running. Prisma then failed while creating tables.
+
+1. Confirm `ricewatch-db` is **healthy** in Docker Desktop.
+2. In the project folder:
+
+```powershell
+cd server
+npm install
+cd ..
+npm run db:ready
+```
+
+3. `server\.env` must use Docker (port **5435**), not pgAdmin (5432):
+
+```env
+DATABASE_URL="postgresql://ricewatch:ricewatch_secret@127.0.0.1:5435/ricewatch?schema=public"
+```
+

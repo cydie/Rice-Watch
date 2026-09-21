@@ -4,33 +4,36 @@
  * pgAdmin / local PostgreSQL is not required.
  */
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { delimiter, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
+const serverDir = join(root, 'server');
 const waitOnly = process.argv.includes('--wait-only');
 const DOCKER_URL =
-  'postgresql://ricewatch:ricewatch_secret@localhost:5435/ricewatch?schema=public';
+  'postgresql://ricewatch:ricewatch_secret@127.0.0.1:5435/ricewatch?schema=public';
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function bin(command) {
-  if (process.platform !== 'win32') return command;
-  if (command === 'npm') return 'npm.cmd';
-  if (command === 'npx') return 'npx.cmd';
-  return command;
-}
-
 function run(command, args, options = {}) {
-  return spawnSync(bin(command), args, {
+  const isWin = process.platform === 'win32';
+  const exe =
+    isWin && command === 'npm'
+      ? 'npm.cmd'
+      : isWin && command === 'npx'
+        ? 'npx.cmd'
+        : command;
+
+  return spawnSync(exe, args, {
     cwd: options.cwd ?? root,
     encoding: 'utf8',
     stdio: options.stdio ?? 'pipe',
     windowsHide: true,
-    shell: false,
+    shell: Boolean(options.shell),
+    env: options.env ?? process.env,
   });
 }
 
@@ -57,12 +60,25 @@ function ensureEnvFiles() {
     fail('Missing server/.env. Copy server/.env.example to server/.env and try again.');
   }
 
-  const envText = readFileSync(serverEnvPath, 'utf8');
-  if (/localhost:5432\b/.test(envText)) {
-    console.warn(
-      'server/.env still points at local PostgreSQL (port 5432). RiceWatch uses the Docker database on port 5435.'
-    );
-    console.warn(`Set DATABASE_URL to:\n  ${DOCKER_URL}\n`);
+  let text = readFileSync(serverEnvPath, 'utf8');
+  let updated = text.replace(/@localhost:5435\b/g, '@127.0.0.1:5435');
+
+  if (/@(localhost|127\.0\.0\.1):5432\b/.test(updated)) {
+    console.warn('server/.env pointed at local PostgreSQL (port 5432). Switching to Docker on 127.0.0.1:5435.');
+    if (/^DATABASE_URL=/m.test(updated)) {
+      updated = updated.replace(/^DATABASE_URL=.*$/m, `DATABASE_URL="${DOCKER_URL}"`);
+    } else {
+      updated = `DATABASE_URL="${DOCKER_URL}"\n${updated}`;
+    }
+  }
+
+  if (!/^DATABASE_URL=/m.test(updated)) {
+    updated = `DATABASE_URL="${DOCKER_URL}"\n${updated}`;
+  }
+
+  if (updated !== text) {
+    writeFileSync(serverEnvPath, updated);
+    console.log('Updated server/.env to use Docker Postgres at 127.0.0.1:5435');
   }
 }
 
@@ -147,7 +163,7 @@ async function waitUntilHealthy() {
   while (Date.now() < deadline) {
     const health = containerHealth();
     if (health === 'healthy' && postgresReady()) {
-      console.log('Docker Postgres is healthy (green) on localhost:5435');
+      console.log('Docker Postgres is healthy (green) on 127.0.0.1:5435');
       return;
     }
     if (health === 'unhealthy') {
@@ -159,10 +175,63 @@ async function waitUntilHealthy() {
   fail('Timed out waiting for Docker Postgres to become healthy. Check Docker Desktop for ricewatch-db.');
 }
 
-function npmInServer(script) {
-  const result = run('npm', ['run', script, '--prefix', 'server'], { stdio: 'inherit' });
+function serverEnv() {
+  return {
+    ...process.env,
+    CI: '1',
+    PATH: `${join(serverDir, 'node_modules', '.bin')}${delimiter}${process.env.PATH || ''}`,
+  };
+}
+
+function runInServer(label, commandLine) {
+  const prismaCmd = join(serverDir, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
+  const tsxCmd = join(serverDir, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
+
+  if (!existsSync(prismaCmd) || (label === 'db:seed' && !existsSync(tsxCmd))) {
+    fail(
+      [
+        `Cannot run ${label} because server packages are missing.`,
+        'From the project folder run:',
+        '  cd server',
+        '  npm install',
+        '  cd ..',
+        '  npm run db:ready',
+      ].join('\n')
+    );
+  }
+
+  console.log(`Running ${label}...`);
+
+  const result =
+    process.platform === 'win32'
+      ? spawnSync('cmd.exe', ['/d', '/s', '/c', commandLine], {
+          cwd: serverDir,
+          stdio: 'inherit',
+          windowsHide: true,
+          env: serverEnv(),
+        })
+      : spawnSync('sh', ['-c', commandLine], {
+          cwd: serverDir,
+          stdio: 'inherit',
+          env: serverEnv(),
+        });
+
+  if (result.error) {
+    fail(`Database step failed (${label}): ${result.error.message}`);
+  }
+
   if (result.status !== 0) {
-    fail(`Database step failed: npm run ${script} --prefix server`);
+    fail(
+      [
+        `Database step failed: ${label}`,
+        `Exit code: ${result.status}`,
+        'The lines above this message are the real Prisma/npm error.',
+        'Typical fixes:',
+        '- Open Docker Desktop and wait until ricewatch-db is healthy',
+        '- In Rice-Watch\\server run: npm install',
+        `- server\\.env DATABASE_URL must be:\n  DATABASE_URL="${DOCKER_URL}"`,
+      ].join('\n')
+    );
   }
 }
 
@@ -190,12 +259,12 @@ async function main() {
 
   if (waitOnly) return;
 
-  npmInServer('db:generate');
-  npmInServer('db:push');
+  runInServer('db:generate', 'prisma generate');
+  runInServer('db:push', 'prisma db push --skip-generate');
 
   if (userCount() === 0) {
     console.log('Empty database — loading demo accounts (no pgAdmin needed)...');
-    npmInServer('db:seed');
+    runInServer('db:seed', 'tsx prisma/seed.ts');
   } else {
     console.log('Database already has data — skipping seed.');
   }
