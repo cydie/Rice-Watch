@@ -38,13 +38,14 @@ import { printPage } from '../lib/exportUtils';
 import { useAuth } from '../context/AuthContext';
 import {
   pageShellSx,
+  embeddedShellSx,
   pageTitleSx,
   pageSubtitleSx,
   modernCardSx,
   sectionGapSx,
 } from '../styles/modernUi';
 
-export function Analytics() {
+export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const [data, setData] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -118,7 +119,7 @@ export function Analytics() {
   } = data;
 
   return (
-    <Box sx={pageShellSx} className="print-area">
+    <Box sx={embedded ? embeddedShellSx : pageShellSx} className="print-area">
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
       <Box
         sx={{
@@ -131,9 +132,11 @@ export function Analytics() {
         }}
       >
         <Box sx={{ maxWidth: 720 }}>
-          <Typography variant="h4" sx={pageTitleSx}>
-            Analytics & Reports
-          </Typography>
+          {!embedded && (
+            <Typography variant="h4" sx={pageTitleSx}>
+              Analytics & Reports
+            </Typography>
+          )}
           <Typography sx={pageSubtitleSx}>
             {assignedBarangay
               ? `Barangay-scoped analytics for Brgy. ${assignedBarangay}`

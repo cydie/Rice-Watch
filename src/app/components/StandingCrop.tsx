@@ -30,6 +30,7 @@ import { useAuth } from '../context/AuthContext';
 import { dialogContentSx, dialogActionsSx, standardInputProps } from '../styles/formStyles';
 import {
   pageShellSx,
+  embeddedShellSx,
   pageTitleSx,
   pageSubtitleSx,
   modernCardSx,
@@ -42,7 +43,7 @@ import {
   progressFillSx,
 } from '../styles/modernUi';
 
-export function StandingCrop() {
+export function StandingCrop({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const { barangays: barangayList, getSitiosByBarangayName } = useLocations();
   const assignedBarangay = user?.role === 'technician' ? user.municipality || '' : '';
@@ -160,7 +161,7 @@ export function StandingCrop() {
   };
 
   return (
-    <Box sx={pageShellSx}>
+    <Box sx={embedded ? embeddedShellSx : pageShellSx}>
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
 
       <Box
@@ -174,12 +175,16 @@ export function StandingCrop() {
         }}
       >
         <Box sx={{ maxWidth: 640 }}>
-          <Typography variant="h4" sx={pageTitleSx}>
-            Standing Crop Monitoring
-          </Typography>
-          <Typography sx={pageSubtitleSx}>
-            Monitor rice crop stages and field conditions across Rizal, Palawan
-          </Typography>
+          {!embedded && (
+            <>
+              <Typography variant="h4" sx={pageTitleSx}>
+                Standing Crop Monitoring
+              </Typography>
+              <Typography sx={pageSubtitleSx}>
+                Monitor rice crop stages and field conditions across Rizal, Palawan
+              </Typography>
+            </>
+          )}
         </Box>
         <Button
           variant="contained"

@@ -40,7 +40,7 @@ import { useAuth } from '../context/AuthContext';
 import { dialogContentSx, dialogActionsSx, standardInputProps } from '../styles/formStyles';
 import { RICE_VARIETY_NAMES, normalizeRiceVariety } from '../lib/riceVarieties';
 
-export function HarvestReports() {
+export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const { barangays: barangayList, getSitiosByBarangayName } = useLocations();
   const assignedBarangay = user?.role === 'technician' ? user.municipality || '' : '';
@@ -151,12 +151,16 @@ export function HarvestReports() {
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
         <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Harvest Reports
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Track rice harvest data and production analytics
-          </Typography>
+          {!embedded && (
+            <>
+              <Typography variant="h4" fontWeight="bold">
+                Harvest Reports
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Track rice harvest data and production analytics
+              </Typography>
+            </>
+          )}
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <Button variant="outlined" startIcon={<Download />} onClick={() => void handleExport()}>

@@ -37,7 +37,7 @@ import { useAuth } from '../context/AuthContext';
 import { dialogContentSx, dialogActionsSx, standardInputProps } from '../styles/formStyles';
 import { RICE_VARIETY_NAMES, normalizeRiceVariety } from '../lib/riceVarieties';
 
-export function PlantingReports() {
+export function PlantingReports({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const { barangays: barangayList, getSitiosByBarangayName } = useLocations();
   const assignedBarangay = user?.role === 'technician' ? user.municipality || '' : '';
@@ -163,12 +163,16 @@ export function PlantingReports() {
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Planting Reports
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage rice planting records and schedules
-          </Typography>
+          {!embedded && (
+            <>
+              <Typography variant="h4" fontWeight="bold">
+                Planting Reports
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Manage rice planting records and schedules
+              </Typography>
+            </>
+          )}
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
           <Button variant="outlined" startIcon={<FileUpload />} onClick={handleImport}>

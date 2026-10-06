@@ -69,7 +69,7 @@ const emptyForm = {
   confirmPassword: '',
 };
 
-export function UserManagement() {
+export function UserManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
@@ -229,12 +229,16 @@ export function UserManagement() {
         }}
       >
         <Box>
-          <Typography variant="h4" fontWeight="bold">
-            User Management
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Create, update, and remove technicians (per barangay) and municipal encoders.
-          </Typography>
+          {!embedded && (
+            <>
+              <Typography variant="h4" fontWeight="bold">
+                User Management
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Create, update, and remove technicians (per barangay) and municipal encoders.
+              </Typography>
+            </>
+          )}
         </Box>
         <Button variant="contained" startIcon={<Add />} onClick={handleOpenCreate}>
           Create Account

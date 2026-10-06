@@ -4,18 +4,10 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { Login } from './components/Login';
 import { ForgotPassword } from './components/ForgotPassword';
 import { Layout } from './components/Layout';
-import { Dashboard } from './components/Dashboard';
-import { PlantingReports } from './components/PlantingReports';
-import { HarvestReports } from './components/HarvestReports';
-import { StandingCrop } from './components/StandingCrop';
-import { MunicipalityManagement } from './components/MunicipalityManagement';
-import { UserManagement } from './components/UserManagement';
-import { Analytics } from './components/Analytics';
+import { DashboardHub } from './components/DashboardHub';
+import { CropReports } from './components/CropReports';
 import { FarmersData } from './components/FarmersData';
-import { ReportPapers } from './components/ReportPapers';
-import { RiceMap } from './components/RiceMap';
-import { Forecast } from './components/Forecast';
-import { AlertCenter } from './components/AlertCenter';
+import { Administration } from './components/Administration';
 
 const theme = createTheme({
   palette: {
@@ -104,32 +96,14 @@ function AppRoutes() {
   const renderContent = () => {
     const isAdmin = user?.role === 'admin';
     switch (currentView) {
-      case 'dashboard':
-        return <Dashboard />;
-      case 'planting':
-        return <PlantingReports />;
-      case 'harvest':
-        return <HarvestReports />;
-      case 'standing-crop':
-        return <StandingCrop />;
-      case 'municipality':
-        return isAdmin ? <MunicipalityManagement /> : <Dashboard />;
-      case 'users':
-        return isAdmin ? <UserManagement /> : <Dashboard />;
-      case 'analytics':
-        return <Analytics />;
+      case 'crop-reports':
+        return <CropReports />;
       case 'farmers':
         return <FarmersData />;
-      case 'papers':
-        return <ReportPapers />;
-      case 'map':
-        return <RiceMap />;
-      case 'forecast':
-        return <Forecast />;
-      case 'alerts':
-        return <AlertCenter />;
+      case 'admin':
+        return isAdmin ? <Administration /> : <DashboardHub />;
       default:
-        return <Dashboard />;
+        return <DashboardHub />;
     }
   };
 

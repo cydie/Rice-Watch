@@ -27,7 +27,7 @@ import { api, BarangayApi, SitioApi } from '../lib/api';
 import { Snackbar } from '@mui/material';
 import { dialogContentSx, dialogActionsSx, standardInputProps } from '../styles/formStyles';
 
-export function MunicipalityManagement() {
+export function MunicipalityManagement({ embedded = false }: { embedded?: boolean } = {}) {
   const [tabValue, setTabValue] = useState(0);
   const [barangays, setBarangays] = useState<BarangayApi[]>([]);
   const [sitios, setSitios] = useState<SitioApi[]>([]);
@@ -155,16 +155,18 @@ export function MunicipalityManagement() {
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
-        <Box>
-          <Typography variant="h4" fontWeight="bold">
-            Barangay Management
-          </Typography>
-          <Typography variant="body2" color="text.secondary">
-            Manage barangay divisions and area classifications - Rizal, Palawan
-          </Typography>
+      {!embedded && (
+        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+          <Box>
+            <Typography variant="h4" fontWeight="bold">
+              Barangay Management
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Manage barangay divisions and area classifications - Rizal, Palawan
+            </Typography>
+          </Box>
         </Box>
-      </Box>
+      )}
 
       <Paper sx={{ mb: 3 }}>
         <Tabs value={tabValue} onChange={(_, v) => setTabValue(v)}>

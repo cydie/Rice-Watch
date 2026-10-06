@@ -8,6 +8,11 @@ export const pageShellSx: SxProps<Theme> = {
   minHeight: 'calc(100vh - 64px)',
 };
 
+/** Page shell when rendered inside a TabbedPage, matching the tab header padding. */
+export const embeddedShellSx: SxProps<Theme> = {
+  p: { xs: 2, md: 3 },
+};
+
 export const pageTitleSx: SxProps<Theme> = {
   fontWeight: 700,
   letterSpacing: '-0.02em',

@@ -45,6 +45,7 @@ import { api, DashboardData } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 import {
   pageShellSx,
+  embeddedShellSx,
   pageTitleSx,
   pageSubtitleSx,
   modernCardSx,
@@ -63,7 +64,7 @@ function formatSyncedAt(iso: string) {
   }
 }
 
-export function Dashboard() {
+export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -177,7 +178,7 @@ export function Dashboard() {
   const assignedBarangay = data.scope?.barangay || user?.municipality || null;
 
   return (
-    <Box sx={pageShellSx}>
+    <Box sx={embedded ? embeddedShellSx : pageShellSx}>
       <Box
         sx={{
           display: 'flex',
@@ -189,9 +190,11 @@ export function Dashboard() {
         }}
       >
         <Box sx={{ maxWidth: 720 }}>
-          <Typography variant="h4" sx={pageTitleSx}>
-            {isTechnician ? 'Barangay Field Briefing' : 'Operations Briefing'}
-          </Typography>
+          {!embedded && (
+            <Typography variant="h4" sx={pageTitleSx}>
+              {isTechnician ? 'Barangay Field Briefing' : 'Operations Briefing'}
+            </Typography>
+          )}
           <Typography sx={pageSubtitleSx}>
             {isTechnician && assignedBarangay
               ? `Assigned barangay: ${assignedBarangay} — data shown is limited to this area only`

@@ -183,7 +183,12 @@ function serverEnv() {
   };
 }
 
-function runInServer(label, commandLine) {
+function engineLocked(result) {
+  const text = `${result.stdout || ''}\n${result.stderr || ''}`;
+  return /EPERM/.test(text) && /query_engine/.test(text);
+}
+
+function runInServer(label, commandLine, { tolerateLockedEngine = false } = {}) {
   const prismaCmd = join(serverDir, 'node_modules', '.bin', process.platform === 'win32' ? 'prisma.cmd' : 'prisma');
   const tsxCmd = join(serverDir, 'node_modules', '.bin', process.platform === 'win32' ? 'tsx.cmd' : 'tsx');
 
@@ -202,22 +207,44 @@ function runInServer(label, commandLine) {
 
   console.log(`Running ${label}...`);
 
+  const stdio = tolerateLockedEngine ? 'pipe' : 'inherit';
   const result =
     process.platform === 'win32'
       ? spawnSync('cmd.exe', ['/d', '/s', '/c', commandLine], {
           cwd: serverDir,
-          stdio: 'inherit',
+          stdio,
+          encoding: 'utf8',
           windowsHide: true,
           env: serverEnv(),
         })
       : spawnSync('sh', ['-c', commandLine], {
           cwd: serverDir,
-          stdio: 'inherit',
+          stdio,
+          encoding: 'utf8',
           env: serverEnv(),
         });
 
+  if (stdio === 'pipe') {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  }
+
   if (result.error) {
     fail(`Database step failed (${label}): ${result.error.message}`);
+  }
+
+  const generatedClient = join(serverDir, 'node_modules', '.prisma', 'client', 'index.js');
+  if (result.status !== 0 && tolerateLockedEngine && engineLocked(result) && existsSync(generatedClient)) {
+    console.warn(
+      [
+        '',
+        'Prisma engine file is locked by another running RiceWatch API (an older "npm run dev").',
+        'Continuing with the existing Prisma client. If you changed schema.prisma, close the other',
+        'dev terminal (or end the stray node.exe processes) and run npm run dev again.',
+        '',
+      ].join('\n')
+    );
+    return;
   }
 
   if (result.status !== 0) {
@@ -259,7 +286,7 @@ async function main() {
 
   if (waitOnly) return;
 
-  runInServer('db:generate', 'prisma generate');
+  runInServer('db:generate', 'prisma generate', { tolerateLockedEngine: true });
   runInServer('db:push', 'prisma db push --skip-generate');
 
   if (userCount() === 0) {

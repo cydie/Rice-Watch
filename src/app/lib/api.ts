@@ -132,21 +132,6 @@ export const api = {
 
   getDashboard: () => request<DashboardData>('/dashboard'),
   getAnalytics: () => request<AnalyticsData>('/analytics'),
-  getMapMetrics: () => request<MapMetricsResponse>('/map/barangay-metrics'),
-  getForecast: () => request<ForecastResponse>('/forecast'),
-  getAlerts: () => request<AlertsResponse>('/alerts'),
-  syncAlertNotifications: () =>
-    request<{ message: string; notified: number }>('/alerts/sync-notifications', {
-      method: 'POST',
-    }),
-  exportAlertsCsv: async () => {
-    const token = getToken();
-    const res = await fetch(`${API_BASE}/alerts/export`, {
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    });
-    if (!res.ok) throw new ApiError('Alert export failed', res.status);
-    return res.blob();
-  },
   downloadResearchPack: async () => {
     const token = getToken();
     const res = await fetch(`${API_BASE}/export/research-pack`, {
@@ -443,80 +428,6 @@ export interface AnalyticsData {
     harvested: number;
     production: number;
     yield: number;
-  }[];
-}
-
-export interface MapBarangayMetric {
-  name: string;
-  plantedHa: number;
-  harvestedHa: number;
-  standingHa: number;
-  productionMt: number;
-  farmers: number;
-  irrigatedHa: number;
-  rainfedHa: number;
-  topVariety: string;
-  yieldMtHa: number;
-  riskLevel: string;
-  riskScore: number;
-  riskFlags: string[];
-}
-
-export interface MapMetricsResponse {
-  scope: { level: string; barangay: string | null };
-  municipality: string;
-  province: string;
-  center: [number, number];
-  metricOptions: string[];
-  barangays: MapBarangayMetric[];
-}
-
-export interface ForecastResponse {
-  scope?: { level: string; barangay: string | null };
-  model: {
-    name: string;
-    type: string;
-    description: string;
-    limitations: string;
-    features: string[];
-    trainedOn: number;
-    holdoutSize: number;
-    mae: number;
-    mape: number;
-    rmse: number;
-  };
-  municipalityMeanYield: number;
-  predictions: {
-    barangay: string;
-    irrigationType: string;
-    varietyClass: string;
-    areaHa: number;
-    predictedYieldMtHa: number;
-    predictedProductionMt: number;
-    baselineYieldMtHa: number;
-    sampleSize: number;
-  }[];
-}
-
-export interface AlertsResponse {
-  scope: { level: string; barangay: string | null };
-  generatedAt: string;
-  summary: {
-    total: number;
-    critical: number;
-    high: number;
-    moderate: number;
-    low: number;
-  };
-  alerts: {
-    barangay: string;
-    score: number;
-    severity: string;
-    flags: string[];
-    damagedAreaHa: number;
-    standingAreaHa: number;
-    plantedHa: number;
-    harvestedHa: number;
   }[];
 }
 

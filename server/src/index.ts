@@ -13,9 +13,6 @@ import notificationRoutes from './routes/notifications.js';
 import exportRoutes from './routes/export.js';
 import farmerRoutes from './routes/farmers.js';
 import reportRoutes from './routes/reports.js';
-import mapRoutes from './routes/map.js';
-import forecastRoutes from './routes/forecast.js';
-import alertRoutes from './routes/alerts.js';
 
 const app = express();
 const PORT = parseInt(process.env.PORT || '4001', 10);
@@ -44,9 +41,6 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/export', exportRoutes);
 app.use('/api/farmers', farmerRoutes);
 app.use('/api/reports', reportRoutes);
-app.use('/api/map', mapRoutes);
-app.use('/api/forecast', forecastRoutes);
-app.use('/api/alerts', alertRoutes);
 
 app.listen(PORT, () => {
   console.log(`RiceWatch API running at http://localhost:${PORT}`);

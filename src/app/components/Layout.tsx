@@ -26,19 +26,11 @@ import {
   Menu as MenuIcon,
   Dashboard,
   Agriculture,
-  Yard,
-  Grass,
-  LocationCity,
-  Assessment,
   People,
   Notifications,
   Settings,
   Logout,
   Person,
-  Description,
-  Map as MapIcon,
-  TrendingUp,
-  WarningAmber,
 } from '@mui/icons-material';
 import RiceWatchLogo from '../../imports/RiceWatch_logo.png';
 import { api, NotificationApi } from '../lib/api';
@@ -75,17 +67,9 @@ export function Layout({
 
   const menuItems = [
     { text: 'Dashboard', icon: <Dashboard />, view: 'dashboard' },
-    { text: 'Planting Reports', icon: <Agriculture />, view: 'planting' },
-    { text: 'Harvest Reports', icon: <Yard />, view: 'harvest' },
-    { text: 'Standing Crop', icon: <Grass />, view: 'standing-crop' },
-    { text: 'Paper Reports', icon: <Description />, view: 'papers' },
-    { text: 'Municipal Map', icon: <MapIcon />, view: 'map' },
-    { text: 'Yield Forecast', icon: <TrendingUp />, view: 'forecast' },
-    { text: 'Early Warnings', icon: <WarningAmber />, view: 'alerts' },
+    { text: 'Crop Reports', icon: <Agriculture />, view: 'crop-reports' },
     { text: 'Farmers Data', icon: <People />, view: 'farmers' },
-    { text: 'User Management', icon: <Person />, view: 'users', adminOnly: true },
-    { text: 'Barangay Management', icon: <LocationCity />, view: 'municipality', adminOnly: true },
-    { text: 'Analytics & Reports', icon: <Assessment />, view: 'analytics' },
+    { text: 'Administration', icon: <Settings />, view: 'admin', adminOnly: true },
   ];
 
   const roleLabel =

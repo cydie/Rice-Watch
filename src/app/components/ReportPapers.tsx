@@ -66,7 +66,7 @@ const RIZAL_BARANGAYS = [
   'Taburi',
 ];
 
-export function ReportPapers() {
+export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
   const isTechnician = user?.role === 'technician';
   const assigned = user?.municipality;
@@ -145,9 +145,11 @@ export function ReportPapers() {
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
-      <Typography variant="h4" fontWeight="bold" gutterBottom>
-        Paper Reports & Upload
-      </Typography>
+      {!embedded && (
+        <Typography variant="h4" fontWeight="bold" gutterBottom>
+          Paper Reports & Upload
+        </Typography>
+      )}
       <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
         {isTechnician
           ? `As technician, input only your assigned barangay${assigned ? ` (${assigned})` : ''}. Use columns and totals that match the official DS 2026 papers so the Department Head can generate an accurate municipal paper.`
