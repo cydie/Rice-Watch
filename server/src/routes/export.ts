@@ -43,31 +43,32 @@ router.get('/:type', async (req, res) => {
 
   if (type === 'planting') {
     const data = await prisma.plantingReport.findMany({ where: reportWhere, include: { barangay: true } });
-    rows = data.map((r) => ({
-      municipality: r.municipality,
+    rows = data.map((r, i) => ({
+      no: i + 1,
       barangay: r.barangay.name,
-      sitio: r.sitio,
-      farmerCount: r.farmerCount,
-      seedVariety: r.seedVariety,
-      areaPlanted: r.areaPlanted,
+      nameOfFarmers: r.farmerName,
+      irrigatedRainfed: r.irrigationType,
+      areaHa: r.areaPlanted,
+      varietyPlanted: r.seedVariety,
       datePlanted: r.datePlanted.toISOString().split('T')[0],
-      irrigationType: r.irrigationType,
-      season: r.season,
-      expectedHarvest: r.expectedHarvest.toISOString().split('T')[0],
+      cropping: r.season,
     }));
     filename = 'planting-reports.csv';
   } else if (type === 'harvest') {
     const data = await prisma.harvestReport.findMany({ where: reportWhere, include: { barangay: true } });
-    rows = data.map((r) => ({
-      municipality: r.municipality,
+    rows = data.map((r, i) => ({
+      no: i + 1,
       barangay: r.barangay.name,
-      sitio: r.sitio,
-      harvestDate: r.harvestDate.toISOString().split('T')[0],
-      harvestedArea: r.harvestedArea,
-      totalProduction: r.totalProduction,
-      averageYield: r.averageYield,
-      riceVariety: r.riceVariety,
-      irrigationType: r.irrigationType,
+      nameOfFarmers: r.farmerName,
+      irrigatedRainfed: r.irrigationType,
+      areaHa: r.harvestedArea,
+      dateHarvested: r.harvestDate.toISOString().split('T')[0],
+      varietyPlanted: r.riceVariety,
+      totalBagsHarvested: r.bagsHarvested,
+      weightPerBagKg: r.weightPerBag,
+      remarks: r.remarks,
+      totalProductionMt: r.totalProduction,
+      averageYieldMtHa: r.averageYield,
     }));
     filename = 'harvest-reports.csv';
   } else if (type === 'standing-crop') {

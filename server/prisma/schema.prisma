@@ -102,11 +102,14 @@ model PlantingReport {
   municipality    String   @default("Rizal")
   barangayId      Int
   sitio           String   @default("-")
-  farmerCount     Int
+  /// Paper form: NAME OF FARMERS
+  farmerName      String   @default("")
+  farmerCount     Int      @default(1)
   seedVariety     String
   areaPlanted     Float
   datePlanted     DateTime @db.Date
   irrigationType  String
+  /// Paper form: CROPPING (1st, 2nd, 3rd) — also accepts season labels
   season          String
   expectedHarvest DateTime @db.Date
   createdAt       DateTime @default(now())
@@ -119,12 +122,20 @@ model HarvestReport {
   municipality    String   @default("Rizal")
   barangayId      Int
   sitio           String   @default("-")
+  /// Paper form: NAME OF FARMERS
+  farmerName      String   @default("")
   harvestDate     DateTime @db.Date
   harvestedArea   Float
+  /// Derived from bags × weight / 1000 when bags are provided
   totalProduction Float
   averageYield    Float
   riceVariety     String
   irrigationType  String
+  /// Paper form: total # of bags harvested
+  bagsHarvested   Int      @default(0)
+  /// Paper form: HARVESTED WEIGHT PER bag (Kilos per bag)
+  weightPerBag    Float    @default(50)
+  remarks         String   @default("")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   barangay        Barangay @relation(fields: [barangayId], references: [id])

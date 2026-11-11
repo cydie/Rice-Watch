@@ -8,7 +8,7 @@ export function CropReports() {
   return (
     <TabbedPage
       title="Crop Reports"
-      subtitle="Planting, harvest and standing crop records, plus barangay paper uploads"
+      subtitle="Official barangay planting & harvesting paper templates, standing crop, and paper uploads"
       tabs={[
         { label: 'Planting', render: () => <PlantingReports embedded /> },
         { label: 'Harvest', render: () => <HarvestReports embedded /> },

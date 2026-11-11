@@ -161,15 +161,29 @@ async function resolveBarangayId(name: string) {
   return b;
 }
 
+function mapCropping(raw: string): string {
+  const u = raw.trim().toUpperCase();
+  if (u === '1' || u.startsWith('1ST') || u.includes('FIRST')) return '1st';
+  if (u === '2' || u.startsWith('2ND') || u.includes('SECOND')) return '2nd';
+  if (u === '3' || u.startsWith('3RD') || u.includes('THIRD')) return '3rd';
+  if (u.includes('DRY')) return '1st';
+  if (u.includes('WET')) return '2nd';
+  return raw.trim() || '1st';
+}
+
 async function ingestPlanting(
   rows: Record<string, unknown>[],
   options: { forcedBarangay?: string | null; replaceBarangay: boolean }
 ) {
-  type Key = string;
-  const groups = new Map<
-    Key,
-    { barangay: string; irrigation: string; seed: string; area: number; count: number; variety: string; dates: Date[] }
-  >();
+  const prepared: {
+    barangay: string;
+    irrigation: string;
+    variety: string;
+    area: number;
+    date: Date;
+    cropping: string;
+    farmerName: string;
+  }[] = [];
 
   for (const r of rows) {
     const loc = options.forcedBarangay || String(r['FARM LOCATION (Barangay)'] || r['FARM LOCATION'] || '');
@@ -180,25 +194,20 @@ async function ingestPlanting(
     }
     const irrigation = mapIrrigation(String(r['IRRIGATION (IRRIGATED/RAINFED)'] || r.IRRIGATION || ''));
     const seed = mapSeedType(String(r['SEED TYPE (HYBRID/RS/CS/GQS/FS)'] || r['SEED TYPE'] || 'FS'));
-    const area = Number(r['AREA PLANTED (HECTARE)'] || r['AREA PLANTED(HECTARE)'] || 0) || 0;
+    const area = Number(r['AREA PLANTED (HECTARE)'] || r['AREA PLANTED(HECTARE)'] || r['AREA (Ha.)'] || 0) || 0;
     if (area <= 0) continue;
-    const variety = normalizeRiceVariety(String(r.VARIETY || seed).trim() || seed);
+    const variety = normalizeRiceVariety(String(r.VARIETY || r['VARIETY PLANTED'] || seed).trim() || seed);
     const date = parseDate(r['DATE PLANTED (YYYY-MM-DD)'] || r['DATE PLANTED'], new Date());
-    const season = String(r['CROPPING / SEASON'] || r.CROPPING || 'Dry Season');
-    const key = `${barangay}|${irrigation}|${seed}|${season}`;
-    if (!groups.has(key)) {
-      groups.set(key, { barangay, irrigation, seed, area: 0, count: 0, variety, dates: [] });
-    }
-    const g = groups.get(key)!;
-    g.area += area;
-    g.count += 1;
-    g.dates.push(date);
-    g.variety = variety;
+    const cropping = mapCropping(String(r['CROPPING / SEASON'] || r.CROPPING || r['CROPPING (1st, 2nd, 3rd)'] || '1st'));
+    const first = String(r['FARMER FIRST NAME'] || '').trim();
+    const last = String(r['FARMER LAST NAME'] || '').trim();
+    const farmerName =
+      String(r['NAME OF FARMERS'] || r['NAME OF FARMER'] || '').trim() ||
+      [first, last].filter(Boolean).join(' ');
+    prepared.push({ barangay, irrigation, variety, area, date, cropping, farmerName });
   }
 
-  const touched = new Set<string>();
-  for (const g of groups.values()) touched.add(g.barangay);
-
+  const touched = [...new Set(prepared.map((p) => p.barangay))];
   if (options.replaceBarangay) {
     for (const name of touched) {
       const b = await resolveBarangayId(name);
@@ -207,70 +216,82 @@ async function ingestPlanting(
   }
 
   let created = 0;
-  for (const g of groups.values()) {
-    const b = await resolveBarangayId(g.barangay);
-    const datePlanted = new Date(Math.min(...g.dates.map((d) => d.getTime())));
-    const expected = new Date(datePlanted);
+  for (const row of prepared) {
+    const b = await resolveBarangayId(row.barangay);
+    const expected = new Date(row.date);
     expected.setDate(expected.getDate() + 120);
-    const seasonRow = rows.find((r) => {
-      const loc = options.forcedBarangay || String(r['FARM LOCATION (Barangay)'] || r['FARM LOCATION'] || '');
-      return normalizeBarangayName(String(loc)) === g.barangay;
-    });
-    const season = String(seasonRow?.['CROPPING / SEASON'] || seasonRow?.CROPPING || 'Dry Season');
     await prisma.plantingReport.create({
       data: {
         municipality: 'Rizal',
         barangayId: b.id,
         sitio: '-',
-        farmerCount: g.count,
-        seedVariety: `${g.seed} / ${g.variety}`,
-        areaPlanted: round2(g.area),
-        datePlanted,
-        irrigationType: g.irrigation,
-        season,
+        farmerName: row.farmerName,
+        farmerCount: 1,
+        seedVariety: row.variety,
+        areaPlanted: round2(row.area),
+        datePlanted: row.date,
+        irrigationType: row.irrigation,
+        season: row.cropping,
         expectedHarvest: expected,
       },
     });
     created += 1;
   }
 
-  return { created, barangays: [...touched], rows: rows.length };
+  return { created, barangays: touched, rows: rows.length };
 }
 
 async function ingestHarvest(
   rows: Record<string, unknown>[],
   options: { forcedBarangay?: string | null; replaceBarangay: boolean }
 ) {
-  const groups = new Map<
-    string,
-    { barangay: string; irrigation: string; area: number; production: number; variety: string; dates: Date[] }
-  >();
+  const prepared: {
+    barangay: string;
+    irrigation: string;
+    area: number;
+    bags: number;
+    weight: number;
+    production: number;
+    variety: string;
+    date: Date;
+    farmerName: string;
+    remarks: string;
+  }[] = [];
 
   for (const r of rows) {
     const loc = options.forcedBarangay || String(r['FARM LOCATION (Barangay)'] || '');
     if (!String(loc).trim()) continue;
     const barangay = normalizeBarangayName(String(loc));
     if (options.forcedBarangay && barangay !== normalizeBarangayName(options.forcedBarangay)) continue;
-    const irrigation = mapIrrigation(String(r['IRRIGATION (IRRIGATED/RAINFED)'] || ''));
-    const area = Number(r['AREA HARVESTED (HECTARE)'] || 0) || 0;
+    const irrigation = mapIrrigation(String(r['IRRIGATION (IRRIGATED/RAINFED)'] || r['Irrigated/Rainfed'] || ''));
+    const area = Number(r['AREA HARVESTED (HECTARE)'] || r['AREA (HA.)'] || 0) || 0;
     if (area <= 0) continue;
-    const bags = Number(r['NO. OF BAGS'] || 0) || 0;
-    const weight = Number(r['WEIGHT PER BAG (KG)'] || 50) || 50;
+    const bags = Number(r['NO. OF BAGS'] || r['total # of bags harvested'] || 0) || 0;
+    const weight = Number(r['WEIGHT PER BAG (KG)'] || r['HARVESTED WEIGHT PER bag (Kilos per bag)'] || 50) || 50;
     const production = (bags * weight) / 1000;
-    const variety = normalizeRiceVariety(String(r.VARIETY || 'Various'));
-    const date = parseDate(r['HARVEST DATE (YYYY-MM-DD)'], new Date());
-    const key = `${barangay}|${irrigation}`;
-    if (!groups.has(key)) {
-      groups.set(key, { barangay, irrigation, area: 0, production: 0, variety, dates: [] });
-    }
-    const g = groups.get(key)!;
-    g.area += area;
-    g.production += production;
-    g.variety = variety;
-    g.dates.push(date);
+    const variety = normalizeRiceVariety(String(r.VARIETY || r['VARIETY PLANTED'] || 'Various'));
+    const date = parseDate(r['HARVEST DATE (YYYY-MM-DD)'] || r['Date harvested'], new Date());
+    const first = String(r['FARMER FIRST NAME'] || '').trim();
+    const last = String(r['FARMER LAST NAME'] || '').trim();
+    const farmerName =
+      String(r['NAME OF FARMERS'] || r['NAME OF FARMER'] || '').trim() ||
+      [first, last].filter(Boolean).join(' ');
+    const remarks = String(r.REMARKS || r.Remarks || '').trim();
+    prepared.push({
+      barangay,
+      irrigation,
+      area,
+      bags,
+      weight,
+      production,
+      variety,
+      date,
+      farmerName,
+      remarks,
+    });
   }
 
-  const touched = [...new Set([...groups.values()].map((g) => g.barangay))];
+  const touched = [...new Set(prepared.map((p) => p.barangay))];
   if (options.replaceBarangay) {
     for (const name of touched) {
       const b = await resolveBarangayId(name);
@@ -279,20 +300,23 @@ async function ingestHarvest(
   }
 
   let created = 0;
-  for (const g of groups.values()) {
-    const b = await resolveBarangayId(g.barangay);
-    const harvestDate = new Date(Math.max(...g.dates.map((d) => d.getTime())));
+  for (const row of prepared) {
+    const b = await resolveBarangayId(row.barangay);
     await prisma.harvestReport.create({
       data: {
         municipality: 'Rizal',
         barangayId: b.id,
         sitio: '-',
-        harvestDate,
-        harvestedArea: round2(g.area),
-        totalProduction: round2(g.production),
-        averageYield: round2(g.production / g.area),
-        riceVariety: g.variety,
-        irrigationType: g.irrigation,
+        farmerName: row.farmerName,
+        harvestDate: row.date,
+        harvestedArea: round2(row.area),
+        totalProduction: round2(row.production),
+        averageYield: row.area ? round2(row.production / row.area) : 0,
+        riceVariety: row.variety,
+        irrigationType: row.irrigation,
+        bagsHarvested: row.bags,
+        weightPerBag: row.weight,
+        remarks: row.remarks,
       },
     });
     created += 1;

@@ -107,7 +107,8 @@ router.get('/', async (req, res) => {
   const search = String(req.query.search ?? '').trim();
   let barangay = String(req.query.barangay ?? '').trim();
   const page = Math.max(1, parseInt(String(req.query.page ?? '1'), 10) || 1);
-  const limit = Math.min(100, Math.max(10, parseInt(String(req.query.limit ?? '50'), 10) || 50));
+  // Higher cap for barangay farmer pickers (planting/harvest forms)
+  const limit = Math.min(2000, Math.max(10, parseInt(String(req.query.limit ?? '50'), 10) || 50));
   const skip = (page - 1) * limit;
 
   // Technicians are locked to their assigned barangay

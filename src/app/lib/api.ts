@@ -236,6 +236,26 @@ export const api = {
     }
     return res.blob();
   },
+
+  /** Official-looking barangay planting/harvest paper HTML (with municipal logo). */
+  getBarangayPaperHtml: async (
+    type: 'planting' | 'harvest',
+    options?: { barangay?: string; source?: 'blank' | 'data' | 'official' }
+  ) => {
+    const token = getToken();
+    const params = new URLSearchParams();
+    if (options?.barangay) params.set('barangay', options.barangay);
+    if (options?.source) params.set('source', options.source);
+    const q = params.toString() ? `?${params.toString()}` : '';
+    const res = await fetch(`${API_BASE}/reports/barangay-paper/${type}${q}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new ApiError(body.error || 'Paper form failed', res.status);
+    }
+    return res.text();
+  },
 };
 
 export interface AuthUser {
@@ -295,11 +315,14 @@ export interface PlantingReportApi {
   municipality: string;
   barangay: string;
   sitio: string;
+  /** Paper form: NAME OF FARMERS */
+  farmerName: string;
   farmerCount: number;
   seedVariety: string;
   areaPlanted: number;
   datePlanted: string;
   irrigationType: string;
+  /** Paper form: CROPPING (1st, 2nd, 3rd) */
   season: string;
   expectedHarvest: string;
 }
@@ -311,15 +334,24 @@ export interface HarvestReportApi {
   municipality: string;
   barangay: string;
   sitio: string;
+  /** Paper form: NAME OF FARMERS */
+  farmerName: string;
   harvestDate: string;
   harvestedArea: number;
   totalProduction: number;
   averageYield: number;
   riceVariety: string;
   irrigationType: string;
+  /** Paper form: total # of bags harvested */
+  bagsHarvested: number;
+  /** Paper form: HARVESTED WEIGHT PER bag (Kilos per bag) */
+  weightPerBag: number;
+  remarks: string;
 }
 
-export type HarvestReportPayload = Omit<HarvestReportApi, 'id' | 'averageYield'>;
+export type HarvestReportPayload = Omit<HarvestReportApi, 'id' | 'averageYield' | 'totalProduction'> & {
+  totalProduction?: number;
+};
 
 export interface StandingCropApi {
   id: number;

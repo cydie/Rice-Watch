@@ -19,30 +19,23 @@ import {
   MenuItem,
   Chip,
   InputAdornment,
-  Grid,
-  Card,
-  CardContent,
   Autocomplete,
   Snackbar,
+  Alert,
 } from '@mui/material';
-import {
-  Add,
-  Edit,
-  Delete,
-  Search,
-  Download,
-  Assessment,
-  TrendingUp
-} from '@mui/icons-material';
-import { api, HarvestReportApi, downloadBlob } from '../lib/api';
+import { Add, Edit, Delete, Search, Print, Download } from '@mui/icons-material';
+import { api, ApiError, HarvestReportApi, downloadBlob } from '../lib/api';
 import { useLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import { dialogContentSx, dialogActionsSx, standardInputProps } from '../styles/formStyles';
 import { RICE_VARIETY_NAMES, normalizeRiceVariety } from '../lib/riceVarieties';
+import { FarmerNameSelect } from './FarmerNameSelect';
+
+const IRRIGATION_TYPES = ['Irrigated', 'Rainfed'];
 
 export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
-  const { barangays: barangayList, getSitiosByBarangayName } = useLocations();
+  const { barangays: barangayList } = useLocations();
   const assignedBarangay = user?.role === 'technician' ? user.municipality || '' : '';
   const [reports, setReports] = useState<HarvestReportApi[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,10 +44,9 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<Partial<HarvestReportApi>>({});
   const [snack, setSnack] = useState('');
+  const [printing, setPrinting] = useState(false);
 
-  const municipalities = ['Rizal'];
   const barangays = barangayList.map((b) => b.name);
-  const availableSitios = formData.barangay ? getSitiosByBarangayName(formData.barangay) : [];
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -68,19 +60,18 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
   }, []);
 
   useEffect(() => {
-    loadReports();
+    void loadReports();
   }, [loadReports]);
-  const irrigationTypes = ['Irrigated', 'Rainfed', 'Upland'];
-
-  const totalHarvestedArea = reports.reduce((sum, r) => sum + r.harvestedArea, 0);
-  const totalProduction = reports.reduce((sum, r) => sum + r.totalProduction, 0);
-  const averageYield = totalProduction / totalHarvestedArea;
 
   const handleAdd = () => {
     setEditingReport(null);
     setFormData({
       irrigationType: 'Irrigated',
       municipality: 'Rizal',
+      farmerName: '',
+      bagsHarvested: 0,
+      weightPerBag: 50,
+      remarks: '',
       ...(assignedBarangay ? { barangay: assignedBarangay } : {}),
     });
     setDialogOpen(true);
@@ -93,19 +84,19 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this harvest report?')) return;
+    if (!confirm('Delete this harvesting report row?')) return;
     try {
       await api.deleteHarvestReport(id);
       await loadReports();
-      setSnack('Report deleted');
+      setSnack('Row deleted');
     } catch {
       setSnack('Delete failed');
     }
   };
 
   const handleSave = async () => {
-    if (!formData.barangay || !formData.riceVariety) {
-      setSnack('Please fill required fields');
+    if (!formData.barangay || !formData.riceVariety || !formData.farmerName?.trim()) {
+      setSnack('Select a registered farmer, barangay, and variety');
       return;
     }
     try {
@@ -113,11 +104,14 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
         municipality: formData.municipality || 'Rizal',
         barangay: formData.barangay,
         sitio: formData.sitio || '-',
+        farmerName: formData.farmerName.trim(),
         harvestDate: formData.harvestDate || new Date().toISOString().split('T')[0],
         harvestedArea: formData.harvestedArea || 0,
-        totalProduction: formData.totalProduction || 0,
         riceVariety: normalizeRiceVariety(formData.riceVariety || ''),
         irrigationType: formData.irrigationType || 'Irrigated',
+        bagsHarvested: formData.bagsHarvested || 0,
+        weightPerBag: formData.weightPerBag || 50,
+        remarks: formData.remarks || '',
       };
       if (editingReport) {
         await api.updateHarvestReport(editingReport.id, payload);
@@ -126,7 +120,7 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
       }
       setDialogOpen(false);
       await loadReports();
-      setSnack(editingReport ? 'Report updated' : 'Report saved');
+      setSnack(editingReport ? 'Harvest row updated' : 'Harvest row saved');
     } catch {
       setSnack('Save failed');
     }
@@ -141,86 +135,89 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
     }
   };
 
-  const filteredReports = reports.filter(r =>
-    r.municipality.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    r.barangay.toLowerCase().includes(searchTerm.toLowerCase())
+  const handlePrintPaper = async () => {
+    setPrinting(true);
+    try {
+      const targetBarangay =
+        assignedBarangay ||
+        reports.find((r) => r.barangay.toLowerCase().includes(searchTerm.toLowerCase()))?.barangay ||
+        reports[0]?.barangay;
+      if (!targetBarangay && user?.role !== 'technician') {
+        setSnack('Add a harvest row first, or search a barangay');
+        return;
+      }
+      const html = await api.getBarangayPaperHtml('harvest', {
+        barangay: user?.role === 'technician' ? undefined : targetBarangay,
+        source: 'data',
+      });
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        downloadBlob(blob, 'harvesting-report-paper.html');
+        setSnack('Pop-up blocked — paper downloaded instead');
+      } else {
+        setSnack('Harvesting paper opened — use Print / Save as PDF');
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setSnack(e instanceof ApiError ? e.message : 'Failed to open harvesting paper');
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const filteredReports = reports.filter(
+    (r) =>
+      !searchTerm ||
+      r.farmerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.barangay.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      r.riceVariety.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           {!embedded && (
-            <>
-              <Typography variant="h4" fontWeight="bold">
-                Harvest Reports
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Track rice harvest data and production analytics
-              </Typography>
-            </>
+            <Typography variant="h4" fontWeight="bold">
+              Harvesting Reports
+            </Typography>
           )}
+          <Typography variant="body2" color="text.secondary">
+            Matches the official HARVESTING REPORT paper — one farmer row per entry
+            {assignedBarangay ? ` · Brgy. ${assignedBarangay} only` : ''}
+          </Typography>
         </Box>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button variant="outlined" startIcon={<Download />} onClick={() => void handleExport()}>
-            Export Report
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          <Button variant="outlined" startIcon={<Print />} disabled={printing} onClick={() => void handlePrintPaper()}>
+            Print paper form
           </Button>
-          <Button variant="contained" startIcon={<Add />} onClick={handleAdd}
-            sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}>
-            Add Harvest Record
+          <Button variant="outlined" startIcon={<Download />} onClick={() => void handleExport()}>
+            Export CSV
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={handleAdd}
+            sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}
+          >
+            Add farmer row
           </Button>
         </Box>
       </Box>
 
-      <Grid container spacing={3} sx={{ mb: 3 }}>
-        <Grid xs={12} md={4}>
-          <Card sx={{ background: 'linear-gradient(135deg, #2196f315 0%, #2196f330 100%)' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">Total Harvested Area</Typography>
-                  <Typography variant="h4" fontWeight="bold">{totalHarvestedArea.toFixed(2)}</Typography>
-                  <Typography variant="caption">hectares</Typography>
-                </Box>
-                <Assessment sx={{ fontSize: 40, color: '#2196f3' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid xs={12} md={4}>
-          <Card sx={{ background: 'linear-gradient(135deg, #4caf5015 0%, #4caf5030 100%)' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">Total Production</Typography>
-                  <Typography variant="h4" fontWeight="bold">{totalProduction.toFixed(2)}</Typography>
-                  <Typography variant="caption">metric tons</Typography>
-                </Box>
-                <TrendingUp sx={{ fontSize: 40, color: '#4caf50' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid xs={12} md={4}>
-          <Card sx={{ background: 'linear-gradient(135deg, #ff980015 0%, #ff980030 100%)' }}>
-            <CardContent>
-              <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                <Box>
-                  <Typography variant="body2" color="text.secondary">Average Yield</Typography>
-                  <Typography variant="h4" fontWeight="bold">{averageYield.toFixed(2)}</Typography>
-                  <Typography variant="caption">MT/hectare</Typography>
-                </Box>
-                <Assessment sx={{ fontSize: 40, color: '#ff9800' }} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      {assignedBarangay && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Scoped to your assigned barangay: <strong>{assignedBarangay}</strong>
+        </Alert>
+      )}
 
       <Paper sx={{ p: 2, mb: 2 }}>
         <TextField
-          placeholder="Search by municipality or barangay..."
+          placeholder="Search farmer, barangay, or variety..."
           variant="outlined"
           size="small"
           fullWidth
@@ -237,49 +234,60 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
       </Paper>
 
       <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table>
+        <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-              <TableCell>Municipality</TableCell>
-              <TableCell>Barangay</TableCell>
-              <TableCell>Sitio/Purok</TableCell>
-              <TableCell>Harvest Date</TableCell>
-              <TableCell>Area (ha)</TableCell>
-              <TableCell>Production (MT)</TableCell>
-              <TableCell>Yield (MT/ha)</TableCell>
-              <TableCell>Rice Variety</TableCell>
-              <TableCell>Irrigation</TableCell>
+              <TableCell>NO.</TableCell>
+              <TableCell>NAME OF FARMERS</TableCell>
+              {!assignedBarangay && <TableCell>Barangay</TableCell>}
+              <TableCell>Irrigated/Rainfed</TableCell>
+              <TableCell>AREA (HA.)</TableCell>
+              <TableCell>Date harvested</TableCell>
+              <TableCell>VARIETY PLANTED</TableCell>
+              <TableCell>Total # of bags</TableCell>
+              <TableCell>Weight per bag (kg)</TableCell>
+              <TableCell>REMARKS</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
-            {filteredReports.map((report) => (
-              <TableRow key={report.id} hover>
-                <TableCell>{report.municipality}</TableCell>
-                <TableCell>{report.barangay}</TableCell>
-                <TableCell>
-                  <Typography variant="body2" color="text.secondary">{report.sitio}</Typography>
+            {loading && (
+              <TableRow>
+                <TableCell colSpan={assignedBarangay ? 10 : 11} align="center">
+                  Loading...
                 </TableCell>
-                <TableCell>{new Date(report.harvestDate).toLocaleDateString()}</TableCell>
-                <TableCell>{report.harvestedArea}</TableCell>
-                <TableCell>{report.totalProduction}</TableCell>
+              </TableRow>
+            )}
+            {!loading && filteredReports.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={assignedBarangay ? 10 : 11} align="center">
+                  No harvest rows yet — add farmer rows like the paper form
+                </TableCell>
+              </TableRow>
+            )}
+            {filteredReports.map((report, index) => (
+              <TableRow key={report.id} hover>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{report.farmerName || '—'}</TableCell>
+                {!assignedBarangay && <TableCell>{report.barangay}</TableCell>}
                 <TableCell>
                   <Chip
-                    label={report.averageYield.toFixed(2)}
+                    label={report.irrigationType}
                     size="small"
-                    color={report.averageYield >= 5 ? 'success' : 'default'}
+                    color={report.irrigationType === 'Irrigated' ? 'primary' : 'default'}
                   />
                 </TableCell>
+                <TableCell>{report.harvestedArea}</TableCell>
+                <TableCell>{new Date(report.harvestDate).toLocaleDateString()}</TableCell>
                 <TableCell>{report.riceVariety}</TableCell>
-                <TableCell>
-                  <Chip label={report.irrigationType} size="small"
-                    color={report.irrigationType === 'Irrigated' ? 'primary' : 'default'} />
-                </TableCell>
+                <TableCell>{report.bagsHarvested || '—'}</TableCell>
+                <TableCell>{report.weightPerBag || '—'}</TableCell>
+                <TableCell>{report.remarks || '—'}</TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => handleEdit(report)} color="primary">
                     <Edit />
                   </IconButton>
-                  <IconButton size="small" onClick={() => handleDelete(report.id)} color="error">
+                  <IconButton size="small" onClick={() => void handleDelete(report.id)} color="error">
                     <Delete />
                   </IconButton>
                 </TableCell>
@@ -290,131 +298,101 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
       </TableContainer>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingReport ? 'Edit Harvest Record' : 'Add New Harvest Record'}
-        </DialogTitle>
+        <DialogTitle>{editingReport ? 'Edit harvesting row' : 'Add harvesting row'}</DialogTitle>
         <DialogContent sx={dialogContentSx}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Same fields as the HARVESTING REPORT paper (Municipality of Dr. Jose P. Rizal)
+          </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <TextField
-                select
-                label="Municipality"
-                value={formData.municipality || ''}
-                onChange={(e) => setFormData({ ...formData, municipality: e.target.value })}
-                {...standardInputProps}
-                sx={{ minWidth: '150px' }}
-              >
-                {municipalities.map((m) => (
-                  <MenuItem key={m} value={m}>{m}</MenuItem>
-                ))}
-              </TextField>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <TextField
                 select
                 label="Barangay"
+                required
                 value={formData.barangay || ''}
-                onChange={(e) => setFormData({ ...formData, barangay: e.target.value, sitio: '' })}
+                onChange={(e) => setFormData({ ...formData, barangay: e.target.value, farmerName: '' })}
                 disabled={!!assignedBarangay}
                 helperText={assignedBarangay ? 'Locked to your assigned barangay' : undefined}
                 {...standardInputProps}
-                sx={{ minWidth: '180px' }}
+                sx={{ minWidth: 200, flex: 1 }}
               >
                 {barangays.map((b) => (
-                  <MenuItem key={b} value={b}>{b}</MenuItem>
+                  <MenuItem key={b} value={b}>
+                    {b}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <FarmerNameSelect
+                barangay={formData.barangay || ''}
+                value={formData.farmerName || ''}
+                onChange={(farmerName) => setFormData({ ...formData, farmerName })}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                select
+                label="Irrigated / Rainfed"
+                value={formData.irrigationType || ''}
+                onChange={(e) => setFormData({ ...formData, irrigationType: e.target.value })}
+                {...standardInputProps}
+                sx={{ minWidth: 160 }}
+              >
+                {IRRIGATION_TYPES.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    {t}
+                  </MenuItem>
                 ))}
               </TextField>
               <TextField
-                select
-                label="Sitio/Purok"
-                value={formData.sitio || ''}
-                onChange={(e) => setFormData({ ...formData, sitio: e.target.value })}
-                disabled={!formData.barangay}
+                label="Area (HA.)"
+                type="number"
+                value={formData.harvestedArea ?? ''}
+                onChange={(e) => setFormData({ ...formData, harvestedArea: parseFloat(e.target.value) })}
                 {...standardInputProps}
-                helperText="Optional"
-                sx={{ minWidth: '150px' }}
-              >
-                <MenuItem value="-">Not Specified</MenuItem>
-                {availableSitios.map((s) => (
-                  <MenuItem key={s.id} value={s.name}>{s.name} ({s.type})</MenuItem>
-                ))}
-              </TextField>
-            </Box>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <Box sx={{ minWidth: '180px' }}>
-                <Typography variant="body2" sx={{ mb: 0.5, fontSize: '0.875rem', color: 'text.secondary', fontWeight: 500 }}>
-                  Harvest Date
+                sx={{ minWidth: 140 }}
+              />
+              <Box sx={{ minWidth: 180, flex: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ mb: 0.5, fontSize: '0.875rem', color: 'text.secondary', fontWeight: 500 }}
+                >
+                  Date harvested
                 </Typography>
                 <TextField
                   type="date"
                   value={formData.harvestDate || ''}
                   onChange={(e) => setFormData({ ...formData, harvestDate: e.target.value })}
                   fullWidth
+                  {...standardInputProps}
+                  InputLabelProps={{ shrink: true }}
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      bgcolor: '#fff',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        bgcolor: '#f8fdf9',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#4caf50'
-                        }
-                      },
-                      '&.Mui-focused': {
-                        bgcolor: '#fff',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#2e7d32',
-                          borderWidth: '2px'
-                        }
-                      }
-                    },
+                    ...(standardInputProps.sx as object),
                     '& input[type="date"]': {
-                      padding: '10px 14px',
+                      padding: '12px 14px',
                       fontSize: '0.95rem',
-                      fontFamily: 'system-ui, -apple-system, sans-serif'
-                    }
+                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                    },
                   }}
                 />
               </Box>
-              <TextField
-                label="Harvested Area"
-                type="number"
-                value={formData.harvestedArea || ''}
-                onChange={(e) => setFormData({ ...formData, harvestedArea: parseFloat(e.target.value) })}
-                {...standardInputProps}
-                helperText="in hectares"
-                sx={{ minWidth: '200px', flex: 1 }}
-              />
             </Box>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <TextField
-                label="Total Production"
-                type="number"
-                value={formData.totalProduction || ''}
-                onChange={(e) => setFormData({ ...formData, totalProduction: parseFloat(e.target.value) })}
-                {...standardInputProps}
-                helperText="in metric tons (MT)"
-                sx={{ minWidth: '200px', flex: 1 }}
-              />
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <Autocomplete
                 freeSolo
                 options={RICE_VARIETY_NAMES}
                 value={formData.riceVariety || ''}
                 onChange={(_e, value) =>
-                  setFormData({
-                    ...formData,
-                    riceVariety: normalizeRiceVariety(value || ''),
-                  })
+                  setFormData({ ...formData, riceVariety: normalizeRiceVariety(value || '') })
                 }
                 onInputChange={(_e, value, reason) => {
                   if (reason === 'input') setFormData({ ...formData, riceVariety: value });
                 }}
-                sx={{ minWidth: '220px', flex: 1 }}
+                sx={{ minWidth: 200, flex: 1 }}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Rice Variety"
+                    label="Variety Planted"
                     required
-                    helperText="Rizal DS 2026 catalog — type to add a rare name"
                     InputLabelProps={{
                       ...params.InputLabelProps,
                       ...standardInputProps.InputLabelProps,
@@ -425,23 +403,40 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
                 )}
               />
               <TextField
-                select
-                label="Irrigation Classification"
-                value={formData.irrigationType || ''}
-                onChange={(e) => setFormData({ ...formData, irrigationType: e.target.value })}
+                label="Total # of bags harvested"
+                type="number"
+                value={formData.bagsHarvested ?? ''}
+                onChange={(e) => setFormData({ ...formData, bagsHarvested: parseInt(e.target.value, 10) || 0 })}
                 {...standardInputProps}
-                sx={{ minWidth: '220px' }}
-              >
-                {irrigationTypes.map((t) => (
-                  <MenuItem key={t} value={t}>{t}</MenuItem>
-                ))}
-              </TextField>
+                sx={{ minWidth: 180 }}
+              />
+              <TextField
+                label="Weight per bag (kg)"
+                type="number"
+                value={formData.weightPerBag ?? 50}
+                onChange={(e) => setFormData({ ...formData, weightPerBag: parseFloat(e.target.value) || 50 })}
+                {...standardInputProps}
+                sx={{ minWidth: 160 }}
+              />
             </Box>
+            <TextField
+              label="Remarks"
+              value={formData.remarks || ''}
+              onChange={(e) => setFormData({ ...formData, remarks: e.target.value })}
+              multiline
+              minRows={2}
+              {...standardInputProps}
+              fullWidth
+            />
           </Box>
         </DialogContent>
         <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button onClick={() => void handleSave()} variant="contained" sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}>
+          <Button
+            onClick={() => void handleSave()}
+            variant="contained"
+            sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}
+          >
             {editingReport ? 'Update' : 'Save'}
           </Button>
         </DialogActions>

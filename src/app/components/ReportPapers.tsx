@@ -28,11 +28,13 @@ import {
   Description,
   AutoAwesome,
   FactCheck,
+  Print,
 } from '@mui/icons-material';
 import { api, ApiError, downloadBlob, TechnicianGuideApi } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 type ReportKind = 'planting' | 'harvest' | 'standing';
+type PaperFormKind = 'planting' | 'harvest';
 
 const KINDS: { type: ReportKind; title: string; blurb: string }[] = [
   {
@@ -126,6 +128,22 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
       const blob = await api.generateMunicipalPaper(type);
       downloadBlob(blob, `RiceWatch-DS2026-${type}-paper.xlsx`);
       setSnack('Municipal paper generated from current database');
+    });
+
+  const openBarangayPaper = (type: PaperFormKind, source: 'data' | 'blank' | 'official') =>
+    run(`paper-${type}-${source}`, async () => {
+      const barangay = isTechnician ? undefined : guideBarangay;
+      const html = await api.getBarangayPaperHtml(type, { barangay, source });
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        downloadBlob(blob, `ricewatch-${type}-barangay-paper.html`);
+        setSnack('Pop-up blocked — paper downloaded as HTML instead');
+      } else {
+        setSnack('Barangay paper opened — use Print / Save as PDF');
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     });
 
   const onFile = (type: ReportKind, file?: File | null) => {
@@ -329,6 +347,39 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
                 >
                   Upload filled Excel
                 </Button>
+                {(k.type === 'planting' || k.type === 'harvest') && (
+                  <>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={
+                        busy === `paper-${k.type}-data` ? (
+                          <CircularProgress size={16} color="inherit" />
+                        ) : (
+                          <Print />
+                        )
+                      }
+                      disabled={!!busy || (isTechnician && !assigned)}
+                      onClick={() => void openBarangayPaper(k.type as PaperFormKind, 'data')}
+                    >
+                      Print / export paper form
+                    </Button>
+                    <Button
+                      variant="outlined"
+                      startIcon={
+                        busy === `paper-${k.type}-blank` ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <Description />
+                        )
+                      }
+                      disabled={!!busy || (isTechnician && !assigned)}
+                      onClick={() => void openBarangayPaper(k.type as PaperFormKind, 'blank')}
+                    >
+                      Print blank paper
+                    </Button>
+                  </>
+                )}
                 <Button
                   variant="outlined"
                   color="secondary"
@@ -342,7 +393,8 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
                 </Button>
                 {isTechnician && (
                   <Typography variant="caption" color="text.secondary">
-                    Prefer Department Head to generate the final municipal paper after all barangays upload.
+                    Paper form is locked to your barangay only. Prefer Department Head to generate the final municipal
+                    paper after all barangays upload.
                   </Typography>
                 )}
                 <input
@@ -389,6 +441,10 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
             </li>
             <li>Keep only your barangay rows; irrigation and seed codes must match the allowed values above.</li>
             <li>Upload replaces that barangay’s reports only — other barangays stay intact.</li>
+            <li>
+              Use <strong>Print / export paper form</strong> for the barangay planting or harvesting sheet (with the
+              municipal logo), scoped to the technician’s barangay only.
+            </li>
             <li>
               Department Head uses <strong>Generate municipal paper</strong> to rebuild Rizal cumulative totals in the
               same structure as the official papers in <code>data/official/</code>.

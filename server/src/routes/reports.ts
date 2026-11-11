@@ -16,6 +16,11 @@ import {
   getOfficialTargets,
   getTargetsForBarangay,
 } from '../lib/officialTargets.js';
+import {
+  BarangayPaperSource,
+  BarangayPaperType,
+  buildBarangayPaperHtml,
+} from '../lib/barangayPaperForms.js';
 import { getTechnicianScope } from '../lib/technicianScope.js';
 import { normalizeBarangayName } from '../lib/helpers.js';
 
@@ -188,6 +193,62 @@ router.get('/generate/:type', async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Failed to generate municipal paper' });
+  }
+});
+
+/** Printable barangay paper form matching DA planting/harvest forms (with municipal logo). */
+router.get('/barangay-paper/:type', async (req, res) => {
+  const rawType = String(req.params.type);
+  const type: BarangayPaperType | null =
+    rawType === 'planting' || rawType === 'harvest' ? rawType : null;
+  if (!type) {
+    return res.status(400).json({ error: 'Paper type must be planting or harvest' });
+  }
+
+  const scope = await getTechnicianScope(req);
+  const qBarangay = typeof req.query.barangay === 'string' ? req.query.barangay.trim() : '';
+  const barangay = scope.isTechnician
+    ? scope.barangayName
+    : qBarangay
+      ? normalizeBarangayName(qBarangay)
+      : null;
+
+  if (!barangay) {
+    return res.status(400).json({
+      error: 'Barangay is required (technicians use assigned barangay; admin pass ?barangay=...)',
+    });
+  }
+
+  if (scope.isTechnician && scope.barangayName && barangay !== scope.barangayName) {
+    return res.status(403).json({ error: `Technicians can only print papers for ${scope.barangayName}` });
+  }
+
+  const sourceRaw = typeof req.query.source === 'string' ? req.query.source : 'data';
+  const source: BarangayPaperSource =
+    sourceRaw === 'blank' || sourceRaw === 'official' || sourceRaw === 'data'
+      ? sourceRaw
+      : 'data';
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user!.userId },
+      select: { fullName: true },
+    });
+    const html = await buildBarangayPaperHtml({
+      type,
+      barangay,
+      preparedBy: user?.fullName || '',
+      source,
+    });
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `inline; filename="ricewatch-${barangay.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-${type}-paper.html"`
+    );
+    res.send(html);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to generate barangay paper form' });
   }
 });
 

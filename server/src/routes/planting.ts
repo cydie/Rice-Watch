@@ -13,6 +13,7 @@ function serialize(report: {
   municipality: string;
   barangayId: number;
   sitio: string;
+  farmerName: string;
   farmerCount: number;
   seedVariety: string;
   areaPlanted: number;
@@ -28,6 +29,7 @@ function serialize(report: {
     barangay: report.barangay.name,
     barangayId: report.barangayId,
     sitio: report.sitio,
+    farmerName: report.farmerName,
     farmerCount: report.farmerCount,
     seedVariety: report.seedVariety,
     areaPlanted: report.areaPlanted,
@@ -38,12 +40,18 @@ function serialize(report: {
   };
 }
 
+function defaultExpectedHarvest(datePlanted: string) {
+  const d = new Date(datePlanted);
+  d.setDate(d.getDate() + 120);
+  return d;
+}
+
 router.get('/', async (req, res) => {
   const scope = await technicianBarangayWhere(req);
   const reports = await prisma.plantingReport.findMany({
     where: scope,
     include: { barangay: true },
-    orderBy: { id: 'desc' },
+    orderBy: [{ datePlanted: 'desc' }, { id: 'desc' }],
   });
   res.json(reports.map(serialize));
 });
@@ -53,13 +61,14 @@ router.post('/', requireRole('admin', 'technician', 'encoder'), async (req, res)
     municipality: z.string().default('Rizal'),
     barangay: z.string(),
     sitio: z.string().default('-'),
-    farmerCount: z.number().int().nonnegative(),
+    farmerName: z.string().default(''),
+    farmerCount: z.number().int().positive().default(1),
     seedVariety: z.string(),
     areaPlanted: z.number().positive(),
     datePlanted: z.string(),
     irrigationType: z.string(),
     season: z.string(),
-    expectedHarvest: z.string(),
+    expectedHarvest: z.string().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid planting report' });
@@ -70,18 +79,24 @@ router.post('/', requireRole('admin', 'technician', 'encoder'), async (req, res)
   const barangayId = await getBarangayIdByName(parsed.data.barangay);
   if (!barangayId) return res.status(400).json({ error: 'Barangay not found' });
 
+  const datePlanted = new Date(parsed.data.datePlanted);
+  const expectedHarvest = parsed.data.expectedHarvest
+    ? new Date(parsed.data.expectedHarvest)
+    : defaultExpectedHarvest(parsed.data.datePlanted);
+
   const report = await prisma.plantingReport.create({
     data: {
       municipality: parsed.data.municipality,
       barangayId,
       sitio: parsed.data.sitio,
-      farmerCount: parsed.data.farmerCount,
+      farmerName: parsed.data.farmerName.trim(),
+      farmerCount: parsed.data.farmerCount || 1,
       seedVariety: parsed.data.seedVariety,
       areaPlanted: parsed.data.areaPlanted,
-      datePlanted: new Date(parsed.data.datePlanted),
+      datePlanted,
       irrigationType: parsed.data.irrigationType,
       season: parsed.data.season,
-      expectedHarvest: new Date(parsed.data.expectedHarvest),
+      expectedHarvest,
     },
     include: { barangay: true },
   });
@@ -89,7 +104,8 @@ router.post('/', requireRole('admin', 'technician', 'encoder'), async (req, res)
   await prisma.activity.create({
     data: {
       action: 'New planting report submitted',
-      location: `Brgy. ${parsed.data.barangay}, ${parsed.data.sitio}`,
+      location: `Brgy. ${parsed.data.barangay}`,
+      userId: req.user?.userId,
     },
   });
 
@@ -102,7 +118,8 @@ router.put('/:id', requireRole('admin', 'technician', 'encoder'), async (req, re
     municipality: z.string().optional(),
     barangay: z.string().optional(),
     sitio: z.string().optional(),
-    farmerCount: z.number().int().nonnegative().optional(),
+    farmerName: z.string().optional(),
+    farmerCount: z.number().int().positive().optional(),
     seedVariety: z.string().optional(),
     areaPlanted: z.number().positive().optional(),
     datePlanted: z.string().optional(),
@@ -130,6 +147,7 @@ router.put('/:id', requireRole('admin', 'technician', 'encoder'), async (req, re
     data.barangayId = barangayId;
     delete data.barangay;
   }
+  if (parsed.data.farmerName !== undefined) data.farmerName = parsed.data.farmerName.trim();
   if (parsed.data.datePlanted) data.datePlanted = new Date(parsed.data.datePlanted);
   if (parsed.data.expectedHarvest) data.expectedHarvest = new Date(parsed.data.expectedHarvest);
 

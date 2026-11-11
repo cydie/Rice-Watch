@@ -13,12 +13,16 @@ function serialize(report: {
   municipality: string;
   barangayId: number;
   sitio: string;
+  farmerName: string;
   harvestDate: Date;
   harvestedArea: number;
   totalProduction: number;
   averageYield: number;
   riceVariety: string;
   irrigationType: string;
+  bagsHarvested: number;
+  weightPerBag: number;
+  remarks: string;
   barangay: { name: string };
 }) {
   return {
@@ -27,13 +31,24 @@ function serialize(report: {
     barangay: report.barangay.name,
     barangayId: report.barangayId,
     sitio: report.sitio,
+    farmerName: report.farmerName,
     harvestDate: report.harvestDate.toISOString().split('T')[0],
     harvestedArea: report.harvestedArea,
     totalProduction: report.totalProduction,
     averageYield: report.averageYield,
     riceVariety: report.riceVariety,
     irrigationType: report.irrigationType,
+    bagsHarvested: report.bagsHarvested,
+    weightPerBag: report.weightPerBag,
+    remarks: report.remarks,
   };
+}
+
+function computeProduction(bags: number, weightPerBag: number, fallbackMt?: number) {
+  if (bags > 0 && weightPerBag > 0) {
+    return Math.round(((bags * weightPerBag) / 1000) * 1000) / 1000;
+  }
+  return fallbackMt ?? 0;
 }
 
 router.get('/', async (req, res) => {
@@ -41,7 +56,7 @@ router.get('/', async (req, res) => {
   const reports = await prisma.harvestReport.findMany({
     where: scope,
     include: { barangay: true },
-    orderBy: { id: 'desc' },
+    orderBy: [{ harvestDate: 'desc' }, { id: 'desc' }],
   });
   res.json(reports.map(serialize));
 });
@@ -51,11 +66,15 @@ router.post('/', requireRole('admin', 'technician', 'encoder'), async (req, res)
     municipality: z.string().default('Rizal'),
     barangay: z.string(),
     sitio: z.string().default('-'),
+    farmerName: z.string().default(''),
     harvestDate: z.string(),
     harvestedArea: z.number().positive(),
-    totalProduction: z.number().nonnegative(),
+    totalProduction: z.number().nonnegative().optional(),
     riceVariety: z.string(),
     irrigationType: z.string(),
+    bagsHarvested: z.number().int().nonnegative().default(0),
+    weightPerBag: z.number().positive().default(50),
+    remarks: z.string().default(''),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: 'Invalid harvest report' });
@@ -66,18 +85,29 @@ router.post('/', requireRole('admin', 'technician', 'encoder'), async (req, res)
   const barangayId = await getBarangayIdByName(parsed.data.barangay);
   if (!barangayId) return res.status(400).json({ error: 'Barangay not found' });
 
-  const averageYield = parsed.data.totalProduction / parsed.data.harvestedArea;
+  const totalProduction = computeProduction(
+    parsed.data.bagsHarvested,
+    parsed.data.weightPerBag,
+    parsed.data.totalProduction
+  );
+  const averageYield =
+    parsed.data.harvestedArea > 0 ? totalProduction / parsed.data.harvestedArea : 0;
+
   const report = await prisma.harvestReport.create({
     data: {
       municipality: parsed.data.municipality,
       barangayId,
       sitio: parsed.data.sitio,
+      farmerName: parsed.data.farmerName.trim(),
       harvestDate: new Date(parsed.data.harvestDate),
       harvestedArea: parsed.data.harvestedArea,
-      totalProduction: parsed.data.totalProduction,
+      totalProduction,
       averageYield,
       riceVariety: parsed.data.riceVariety,
       irrigationType: parsed.data.irrigationType,
+      bagsHarvested: parsed.data.bagsHarvested,
+      weightPerBag: parsed.data.weightPerBag,
+      remarks: parsed.data.remarks.trim(),
     },
     include: { barangay: true },
   });
@@ -85,7 +115,8 @@ router.post('/', requireRole('admin', 'technician', 'encoder'), async (req, res)
   await prisma.activity.create({
     data: {
       action: 'Harvest data updated',
-      location: `Brgy. ${parsed.data.barangay}, ${parsed.data.sitio}`,
+      location: `Brgy. ${parsed.data.barangay}`,
+      userId: req.user?.userId,
     },
   });
 
@@ -98,11 +129,15 @@ router.put('/:id', requireRole('admin', 'technician', 'encoder'), async (req, re
     municipality: z.string().optional(),
     barangay: z.string().optional(),
     sitio: z.string().optional(),
+    farmerName: z.string().optional(),
     harvestDate: z.string().optional(),
     harvestedArea: z.number().positive().optional(),
     totalProduction: z.number().nonnegative().optional(),
     riceVariety: z.string().optional(),
     irrigationType: z.string().optional(),
+    bagsHarvested: z.number().int().nonnegative().optional(),
+    weightPerBag: z.number().positive().optional(),
+    remarks: z.string().optional(),
   });
   const parsed = schema.safeParse(req.body);
   if (!parsed.success || isNaN(id)) return res.status(400).json({ error: 'Invalid data' });
@@ -124,11 +159,22 @@ router.put('/:id', requireRole('admin', 'technician', 'encoder'), async (req, re
     data.barangayId = barangayId;
     delete data.barangay;
   }
+  if (parsed.data.farmerName !== undefined) data.farmerName = parsed.data.farmerName.trim();
+  if (parsed.data.remarks !== undefined) data.remarks = parsed.data.remarks.trim();
   if (parsed.data.harvestDate) data.harvestDate = new Date(parsed.data.harvestDate);
 
   const harvestedArea = (parsed.data.harvestedArea ?? existing.harvestedArea) as number;
-  const totalProduction = (parsed.data.totalProduction ?? existing.totalProduction) as number;
-  data.averageYield = totalProduction / harvestedArea;
+  const bagsHarvested = (parsed.data.bagsHarvested ?? existing.bagsHarvested) as number;
+  const weightPerBag = (parsed.data.weightPerBag ?? existing.weightPerBag) as number;
+  const totalProduction = computeProduction(
+    bagsHarvested,
+    weightPerBag,
+    parsed.data.totalProduction ?? existing.totalProduction
+  );
+  data.bagsHarvested = bagsHarvested;
+  data.weightPerBag = weightPerBag;
+  data.totalProduction = totalProduction;
+  data.averageYield = harvestedArea > 0 ? totalProduction / harvestedArea : 0;
 
   const report = await prisma.harvestReport.update({
     where: { id },

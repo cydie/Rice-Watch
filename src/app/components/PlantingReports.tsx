@@ -19,27 +19,24 @@ import {
   MenuItem,
   Chip,
   InputAdornment,
-  Grid,
   Autocomplete,
   Snackbar,
+  Alert,
 } from '@mui/material';
-import {
-  Add,
-  Edit,
-  Delete,
-  Search,
-  FileUpload,
-  Download
-} from '@mui/icons-material';
-import { api, PlantingReportApi, downloadBlob } from '../lib/api';
+import { Add, Edit, Delete, Search, Print, Download } from '@mui/icons-material';
+import { api, ApiError, PlantingReportApi, downloadBlob } from '../lib/api';
 import { useLocations } from '../hooks/useLocations';
 import { useAuth } from '../context/AuthContext';
 import { dialogContentSx, dialogActionsSx, standardInputProps } from '../styles/formStyles';
 import { RICE_VARIETY_NAMES, normalizeRiceVariety } from '../lib/riceVarieties';
+import { FarmerNameSelect } from './FarmerNameSelect';
+
+const IRRIGATION_TYPES = ['Irrigated', 'Rainfed'];
+const CROPPING_OPTIONS = ['1st', '2nd', '3rd'];
 
 export function PlantingReports({ embedded = false }: { embedded?: boolean } = {}) {
   const { user } = useAuth();
-  const { barangays: barangayList, getSitiosByBarangayName } = useLocations();
+  const { barangays: barangayList } = useLocations();
   const assignedBarangay = user?.role === 'technician' ? user.municipality || '' : '';
   const [reports, setReports] = useState<PlantingReportApi[]>([]);
   const [loading, setLoading] = useState(true);
@@ -48,11 +45,10 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
   const [searchTerm, setSearchTerm] = useState('');
   const [formData, setFormData] = useState<Partial<PlantingReportApi>>({});
   const [snack, setSnack] = useState('');
-  const [filterSeason, setFilterSeason] = useState('');
+  const [filterCropping, setFilterCropping] = useState('');
+  const [printing, setPrinting] = useState(false);
 
-  const municipalities = ['Rizal'];
   const barangays = barangayList.map((b) => b.name);
-  const availableSitios = formData.barangay ? getSitiosByBarangayName(formData.barangay) : [];
 
   const loadReports = useCallback(async () => {
     setLoading(true);
@@ -66,17 +62,17 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
   }, []);
 
   useEffect(() => {
-    loadReports();
+    void loadReports();
   }, [loadReports]);
-  const irrigationTypes = ['Irrigated', 'Rainfed', 'Upland'];
-  const seasons = ['Wet Season', 'Dry Season'];
 
   const handleAdd = () => {
     setEditingReport(null);
     setFormData({
       irrigationType: 'Irrigated',
-      season: 'Wet Season',
+      season: '1st',
       municipality: 'Rizal',
+      farmerName: '',
+      farmerCount: 1,
       ...(assignedBarangay ? { barangay: assignedBarangay } : {}),
     });
     setDialogOpen(true);
@@ -89,19 +85,19 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
   };
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Are you sure you want to delete this planting report?')) return;
+    if (!confirm('Delete this planting report row?')) return;
     try {
       await api.deletePlantingReport(id);
       await loadReports();
-      setSnack('Report deleted');
+      setSnack('Row deleted');
     } catch {
       setSnack('Delete failed');
     }
   };
 
   const handleSave = async () => {
-    if (!formData.barangay || !formData.seedVariety) {
-      setSnack('Please fill required fields');
+    if (!formData.barangay || !formData.seedVariety || !formData.farmerName?.trim()) {
+      setSnack('Select a registered farmer, barangay, and variety');
       return;
     }
     try {
@@ -109,13 +105,14 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
         municipality: formData.municipality || 'Rizal',
         barangay: formData.barangay,
         sitio: formData.sitio || '-',
-        farmerCount: formData.farmerCount || 0,
+        farmerName: formData.farmerName.trim(),
+        farmerCount: 1,
         seedVariety: normalizeRiceVariety(formData.seedVariety || ''),
         areaPlanted: formData.areaPlanted || 0,
         datePlanted: formData.datePlanted || new Date().toISOString().split('T')[0],
         irrigationType: formData.irrigationType || 'Irrigated',
-        season: formData.season || 'Wet Season',
-        expectedHarvest: formData.expectedHarvest || new Date().toISOString().split('T')[0],
+        season: formData.season || '1st',
+        expectedHarvest: formData.expectedHarvest || '',
       };
       if (editingReport) {
         await api.updatePlantingReport(editingReport.id, payload);
@@ -124,7 +121,7 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
       }
       setDialogOpen(false);
       await loadReports();
-      setSnack(editingReport ? 'Report updated' : 'Report saved');
+      setSnack(editingReport ? 'Planting row updated' : 'Planting row saved');
     } catch {
       setSnack('Save failed — check all fields');
     }
@@ -139,59 +136,93 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
     }
   };
 
-  const handleImport = () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.csv';
-    input.onchange = () => setSnack('CSV import: use Add Report or contact admin for bulk import');
-    input.click();
+  const handlePrintPaper = async () => {
+    setPrinting(true);
+    try {
+      const targetBarangay =
+        assignedBarangay ||
+        reports.find((r) => r.barangay.toLowerCase().includes(searchTerm.toLowerCase()))?.barangay ||
+        reports[0]?.barangay;
+      if (!targetBarangay && user?.role !== 'technician') {
+        setSnack('Add a planting row first, or search a barangay');
+        return;
+      }
+      const html = await api.getBarangayPaperHtml('planting', {
+        barangay: user?.role === 'technician' ? undefined : targetBarangay,
+        source: 'data',
+      });
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const win = window.open(url, '_blank', 'noopener,noreferrer');
+      if (!win) {
+        downloadBlob(blob, 'planting-report-paper.html');
+        setSnack('Pop-up blocked — paper downloaded instead');
+      } else {
+        setSnack('Planting paper opened — use Print / Save as PDF');
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (e) {
+      setSnack(e instanceof ApiError ? e.message : 'Failed to open planting paper');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const filteredReports = reports.filter((r) => {
     const q = searchTerm.toLowerCase();
     const matchSearch =
       !q ||
-      r.municipality.toLowerCase().includes(q) ||
+      r.farmerName.toLowerCase().includes(q) ||
       r.barangay.toLowerCase().includes(q) ||
       r.seedVariety.toLowerCase().includes(q);
-    const matchSeason = !filterSeason || r.season === filterSeason;
-    return matchSearch && matchSeason;
+    const matchCropping = !filterCropping || r.season === filterCropping;
+    return matchSearch && matchCropping;
   });
 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')} message={snack} />
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3, flexWrap: 'wrap', gap: 2 }}>
+
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           {!embedded && (
-            <>
-              <Typography variant="h4" fontWeight="bold">
-                Planting Reports
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                Manage rice planting records and schedules
-              </Typography>
-            </>
+            <Typography variant="h4" fontWeight="bold">
+              Planting Reports
+            </Typography>
           )}
+          <Typography variant="body2" color="text.secondary">
+            Matches the official PLANTING REPORT paper — one farmer row per entry
+            {assignedBarangay ? ` · Brgy. ${assignedBarangay} only` : ''}
+          </Typography>
         </Box>
         <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-          <Button variant="outlined" startIcon={<FileUpload />} onClick={handleImport}>
-            Import Excel
+          <Button variant="outlined" startIcon={<Print />} disabled={printing} onClick={() => void handlePrintPaper()}>
+            Print paper form
           </Button>
-          <Button variant="outlined" startIcon={<Download />} onClick={handleExport}>
-            Export
+          <Button variant="outlined" startIcon={<Download />} onClick={() => void handleExport()}>
+            Export CSV
           </Button>
-          <Button variant="contained" startIcon={<Add />} onClick={handleAdd}
-            sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}>
-            Add Report
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={handleAdd}
+            sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}
+          >
+            Add farmer row
           </Button>
         </Box>
       </Box>
 
+      {assignedBarangay && (
+        <Alert severity="success" sx={{ mb: 2 }}>
+          Scoped to your assigned barangay: <strong>{assignedBarangay}</strong>
+        </Alert>
+      )}
+
       <Paper sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
           <TextField
-            placeholder="Search by municipality, barangay, or variety..."
+            placeholder="Search farmer, barangay, or variety..."
             variant="outlined"
             size="small"
             fullWidth
@@ -208,58 +239,56 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
           <TextField
             select
             size="small"
-            label="Season"
-            value={filterSeason}
-            onChange={(e) => setFilterSeason(e.target.value)}
-            sx={{ minWidth: 140 }}
+            label="Cropping"
+            value={filterCropping}
+            onChange={(e) => setFilterCropping(e.target.value)}
+            sx={{ minWidth: 120 }}
           >
             <MenuItem value="">All</MenuItem>
-            {seasons.map((s) => (
-              <MenuItem key={s} value={s}>{s}</MenuItem>
+            {CROPPING_OPTIONS.map((s) => (
+              <MenuItem key={s} value={s}>
+                {s}
+              </MenuItem>
             ))}
           </TextField>
         </Box>
       </Paper>
 
       <TableContainer component={Paper} sx={{ overflowX: 'auto' }}>
-        <Table>
+        <Table size="small">
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
-              <TableCell>Municipality</TableCell>
-              <TableCell>Barangay</TableCell>
-              <TableCell>Sitio/Purok</TableCell>
-              <TableCell>Farmers</TableCell>
-              <TableCell>Seed Variety</TableCell>
-              <TableCell>Area (ha)</TableCell>
-              <TableCell>Date Planted</TableCell>
-              <TableCell>Irrigation</TableCell>
-              <TableCell>Season</TableCell>
-              <TableCell>Expected Harvest</TableCell>
+              <TableCell>NO.</TableCell>
+              <TableCell>NAME OF FARMERS</TableCell>
+              {!assignedBarangay && <TableCell>Barangay</TableCell>}
+              <TableCell>IRRIGATED / RAINFED</TableCell>
+              <TableCell>AREA (Ha.)</TableCell>
+              <TableCell>VARIETY PLANTED</TableCell>
+              <TableCell>DATE PLANTED</TableCell>
+              <TableCell>CROPPING (1st, 2nd, 3rd)</TableCell>
               <TableCell align="right">Actions</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {loading && (
               <TableRow>
-                <TableCell colSpan={11} align="center">Loading...</TableCell>
+                <TableCell colSpan={assignedBarangay ? 8 : 9} align="center">
+                  Loading...
+                </TableCell>
               </TableRow>
             )}
             {!loading && filteredReports.length === 0 && (
               <TableRow>
-                <TableCell colSpan={11} align="center">No reports found</TableCell>
+                <TableCell colSpan={assignedBarangay ? 8 : 9} align="center">
+                  No planting rows yet — add farmer rows like the paper form
+                </TableCell>
               </TableRow>
             )}
-            {filteredReports.map((report) => (
+            {filteredReports.map((report, index) => (
               <TableRow key={report.id} hover>
-                <TableCell>{report.municipality}</TableCell>
-                <TableCell>{report.barangay}</TableCell>
-                <TableCell>
-                  <Typography variant="body2" color="text.secondary">{report.sitio}</Typography>
-                </TableCell>
-                <TableCell>{report.farmerCount}</TableCell>
-                <TableCell>{report.seedVariety}</TableCell>
-                <TableCell>{report.areaPlanted}</TableCell>
-                <TableCell>{new Date(report.datePlanted).toLocaleDateString()}</TableCell>
+                <TableCell>{index + 1}</TableCell>
+                <TableCell>{report.farmerName || '—'}</TableCell>
+                {!assignedBarangay && <TableCell>{report.barangay}</TableCell>}
                 <TableCell>
                   <Chip
                     label={report.irrigationType}
@@ -267,13 +296,15 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
                     color={report.irrigationType === 'Irrigated' ? 'primary' : 'default'}
                   />
                 </TableCell>
+                <TableCell>{report.areaPlanted}</TableCell>
+                <TableCell>{report.seedVariety}</TableCell>
+                <TableCell>{new Date(report.datePlanted).toLocaleDateString()}</TableCell>
                 <TableCell>{report.season}</TableCell>
-                <TableCell>{new Date(report.expectedHarvest).toLocaleDateString()}</TableCell>
                 <TableCell align="right">
                   <IconButton size="small" onClick={() => handleEdit(report)} color="primary">
                     <Edit />
                   </IconButton>
-                  <IconButton size="small" onClick={() => handleDelete(report.id)} color="error">
+                  <IconButton size="small" onClick={() => void handleDelete(report.id)} color="error">
                     <Delete />
                   </IconButton>
                 </TableCell>
@@ -284,83 +315,75 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
       </TableContainer>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="md" fullWidth>
-        <DialogTitle>
-          {editingReport ? 'Edit Planting Report' : 'Add New Planting Report'}
-        </DialogTitle>
+        <DialogTitle>{editingReport ? 'Edit planting row' : 'Add planting row'}</DialogTitle>
         <DialogContent sx={dialogContentSx}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Same fields as the PLANTING REPORT paper (Municipality of Dr. Jose P. Rizal)
+          </Typography>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <TextField
-                select
-                label="Municipality"
-                value={formData.municipality || ''}
-                onChange={(e) => setFormData({ ...formData, municipality: e.target.value })}
-                {...standardInputProps}
-                sx={{ minWidth: '150px' }}
-              >
-                {municipalities.map((m) => (
-                  <MenuItem key={m} value={m}>{m}</MenuItem>
-                ))}
-              </TextField>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <TextField
                 select
                 label="Barangay"
+                required
                 value={formData.barangay || ''}
-                onChange={(e) => setFormData({ ...formData, barangay: e.target.value, sitio: '' })}
+                onChange={(e) => setFormData({ ...formData, barangay: e.target.value, farmerName: '' })}
                 disabled={!!assignedBarangay}
                 helperText={assignedBarangay ? 'Locked to your assigned barangay' : undefined}
                 {...standardInputProps}
-                sx={{ minWidth: '180px' }}
+                sx={{ minWidth: 200, flex: 1 }}
               >
                 {barangays.map((b) => (
-                  <MenuItem key={b} value={b}>{b}</MenuItem>
+                  <MenuItem key={b} value={b}>
+                    {b}
+                  </MenuItem>
                 ))}
               </TextField>
-              <TextField
-                select
-                label="Sitio/Purok"
-                value={formData.sitio || ''}
-                onChange={(e) => setFormData({ ...formData, sitio: e.target.value })}
-                disabled={!formData.barangay}
-                {...standardInputProps}
-                helperText="Optional"
-                sx={{ minWidth: '150px' }}
-              >
-                <MenuItem value="-">Not Specified</MenuItem>
-                {availableSitios.map((s) => (
-                  <MenuItem key={s.id} value={s.name}>{s.name} ({s.type})</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                label="Number of Farmers"
-                type="number"
-                value={formData.farmerCount || ''}
-                onChange={(e) => setFormData({ ...formData, farmerCount: parseInt(e.target.value) })}
-                {...standardInputProps}
-                sx={{ minWidth: '200px', flex: 1 }}
+              <FarmerNameSelect
+                barangay={formData.barangay || ''}
+                value={formData.farmerName || ''}
+                onChange={(farmerName) => setFormData({ ...formData, farmerName })}
               />
             </Box>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                select
+                label="Irrigated / Rainfed"
+                value={formData.irrigationType || ''}
+                onChange={(e) => setFormData({ ...formData, irrigationType: e.target.value })}
+                {...standardInputProps}
+                sx={{ minWidth: 160 }}
+              >
+                {IRRIGATION_TYPES.map((t) => (
+                  <MenuItem key={t} value={t}>
+                    {t}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Area (Ha.)"
+                type="number"
+                value={formData.areaPlanted ?? ''}
+                onChange={(e) => setFormData({ ...formData, areaPlanted: parseFloat(e.target.value) })}
+                {...standardInputProps}
+                sx={{ minWidth: 140 }}
+              />
               <Autocomplete
                 freeSolo
                 options={RICE_VARIETY_NAMES}
                 value={formData.seedVariety || ''}
                 onChange={(_e, value) =>
-                  setFormData({
-                    ...formData,
-                    seedVariety: normalizeRiceVariety(value || ''),
-                  })
+                  setFormData({ ...formData, seedVariety: normalizeRiceVariety(value || '') })
                 }
                 onInputChange={(_e, value, reason) => {
                   if (reason === 'input') setFormData({ ...formData, seedVariety: value });
                 }}
-                sx={{ minWidth: '220px', flex: 1 }}
+                sx={{ minWidth: 200, flex: 1 }}
                 renderInput={(params) => (
                   <TextField
                     {...params}
-                    label="Seed Variety"
+                    label="Variety Planted"
                     required
-                    helperText="Rizal DS 2026 catalog — type to add a rare name"
                     InputLabelProps={{
                       ...params.InputLabelProps,
                       ...standardInputProps.InputLabelProps,
@@ -370,19 +393,13 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
                   />
                 )}
               />
-              <TextField
-                label="Area Planted"
-                type="number"
-                value={formData.areaPlanted || ''}
-                onChange={(e) => setFormData({ ...formData, areaPlanted: parseFloat(e.target.value) })}
-                {...standardInputProps}
-                helperText="in hectares"
-                sx={{ minWidth: '200px', flex: 1 }}
-              />
             </Box>
-            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-              <Box sx={{ minWidth: '180px' }}>
-                <Typography variant="body2" sx={{ mb: 0.5, fontSize: '0.875rem', color: 'text.secondary', fontWeight: 500 }}>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <Box sx={{ minWidth: 180, flex: 1 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ mb: 0.5, fontSize: '0.875rem', color: 'text.secondary', fontWeight: 500 }}
+                >
                   Date Planted
                 </Typography>
                 <TextField
@@ -390,99 +407,42 @@ export function PlantingReports({ embedded = false }: { embedded?: boolean } = {
                   value={formData.datePlanted || ''}
                   onChange={(e) => setFormData({ ...formData, datePlanted: e.target.value })}
                   fullWidth
+                  {...standardInputProps}
+                  InputLabelProps={{ shrink: true }}
                   sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      bgcolor: '#fff',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        bgcolor: '#f8fdf9',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#4caf50'
-                        }
-                      },
-                      '&.Mui-focused': {
-                        bgcolor: '#fff',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#2e7d32',
-                          borderWidth: '2px'
-                        }
-                      }
-                    },
+                    ...(standardInputProps.sx as object),
                     '& input[type="date"]': {
-                      padding: '10px 14px',
+                      padding: '12px 14px',
                       fontSize: '0.95rem',
-                      fontFamily: 'system-ui, -apple-system, sans-serif'
-                    }
+                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                    },
                   }}
                 />
               </Box>
               <TextField
                 select
-                label="Irrigation Type"
-                value={formData.irrigationType || ''}
-                onChange={(e) => setFormData({ ...formData, irrigationType: e.target.value })}
-                {...standardInputProps}
-                sx={{ minWidth: '160px' }}
-              >
-                {irrigationTypes.map((t) => (
-                  <MenuItem key={t} value={t}>{t}</MenuItem>
-                ))}
-              </TextField>
-              <TextField
-                select
-                label="Season"
-                value={formData.season || ''}
+                label="Cropping (1st, 2nd, 3rd)"
+                value={formData.season || '1st'}
                 onChange={(e) => setFormData({ ...formData, season: e.target.value })}
                 {...standardInputProps}
-                sx={{ minWidth: '160px' }}
+                sx={{ ...(standardInputProps.sx as object), minWidth: 180 }}
               >
-                {seasons.map((s) => (
-                  <MenuItem key={s} value={s}>{s}</MenuItem>
+                {CROPPING_OPTIONS.map((s) => (
+                  <MenuItem key={s} value={s}>
+                    {s}
+                  </MenuItem>
                 ))}
               </TextField>
-              <Box sx={{ minWidth: '220px' }}>
-                <Typography variant="body2" sx={{ mb: 0.5, fontSize: '0.875rem', color: 'text.secondary', fontWeight: 500 }}>
-                  Expected Harvest Date
-                </Typography>
-                <TextField
-                  type="date"
-                  value={formData.expectedHarvest || ''}
-                  onChange={(e) => setFormData({ ...formData, expectedHarvest: e.target.value })}
-                  fullWidth
-                  sx={{
-                    '& .MuiOutlinedInput-root': {
-                      borderRadius: 2,
-                      bgcolor: '#fff',
-                      transition: 'all 0.2s ease',
-                      '&:hover': {
-                        bgcolor: '#f8fdf9',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#4caf50'
-                        }
-                      },
-                      '&.Mui-focused': {
-                        bgcolor: '#fff',
-                        '& .MuiOutlinedInput-notchedOutline': {
-                          borderColor: '#2e7d32',
-                          borderWidth: '2px'
-                        }
-                      }
-                    },
-                    '& input[type="date"]': {
-                      padding: '10px 14px',
-                      fontSize: '0.95rem',
-                      fontFamily: 'system-ui, -apple-system, sans-serif'
-                    }
-                  }}
-                />
-              </Box>
             </Box>
           </Box>
         </DialogContent>
         <DialogActions sx={dialogActionsSx}>
           <Button onClick={() => setDialogOpen(false)}>Cancel</Button>
-          <Button onClick={() => void handleSave()} variant="contained" sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}>
+          <Button
+            onClick={() => void handleSave()}
+            variant="contained"
+            sx={{ background: 'linear-gradient(45deg, #2e7d32 30%, #66bb6a 90%)' }}
+          >
             {editingReport ? 'Update' : 'Save'}
           </Button>
         </DialogActions>
