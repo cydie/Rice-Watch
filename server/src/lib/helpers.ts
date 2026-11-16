@@ -5,6 +5,11 @@ export function parseId(param: string | string[]): number {
   return id;
 }
 
+export function paramString(param: string | string[] | undefined): string {
+  if (Array.isArray(param)) return param[0] ?? '';
+  return param ?? '';
+}
+
 const BARANGAY_ALIASES: Record<string, string> = {
   BUNOG: 'Bunog',
   'CAMPONG ULAY': 'Campong Ulay',

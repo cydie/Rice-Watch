@@ -338,7 +338,7 @@ export function StandingCrop({ embedded = false }: { embedded?: boolean } = {}) 
                 </TableCell>
                 <TableCell>
                   {report.damagedArea > 0 ? (
-                    <Typography color="error" fontWeight="bold">
+                    <Typography color="error" sx={{ fontWeight: "bold" }}>
                       {report.damagedArea}
                     </Typography>
                   ) : (

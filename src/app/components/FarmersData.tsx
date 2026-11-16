@@ -17,10 +17,16 @@ import {
   Button,
   Snackbar,
   Alert,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material';
-import { Search, People, Agriculture, Download } from '@mui/icons-material';
-import { api, FarmerApi, FarmerStats, downloadBlob } from '../lib/api';
+import { Search, People, Agriculture, Download, Add } from '@mui/icons-material';
+import { api, ApiError, FarmerApi, FarmerStats, downloadBlob } from '../lib/api';
 import { useLocations } from '../hooks/useLocations';
+import { useAuth } from '../context/AuthContext';
+import { dialogActionsSx, dialogContentSx, standardInputProps } from '../styles/formStyles';
 
 function yesNo(value: boolean) {
   return value ? 'YES' : 'NO';
@@ -37,7 +43,36 @@ function formatArea(value: number | null) {
   return value.toFixed(2);
 }
 
+const emptyFarmerForm = {
+  rsbsaNumber: '',
+  lastName: '',
+  firstName: '',
+  middleName: '',
+  suffix: '',
+  barangayId: '',
+  farmerAddress1: '',
+  farmerAddress2: 'Rizal',
+  farmerAddress3: 'Palawan',
+  farmAddress2: '',
+  farmAddress3: '',
+  birthdate: '',
+  sex: '',
+  contactNo: '',
+  fourPs: 'NO',
+  indigenous: 'NO',
+  pwd: 'NO',
+  farmArea: '',
+  areaPlanted: '',
+  commodity: 'Rice/Palay',
+  farmerGeoCode: '',
+  farmGeoCode: '',
+};
+
+type FarmerForm = typeof emptyFarmerForm;
+
 export function FarmersData() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
   const { barangays } = useLocations();
   const [farmers, setFarmers] = useState<FarmerApi[]>([]);
   const [stats, setStats] = useState<FarmerStats | null>(null);
@@ -48,7 +83,11 @@ export function FarmersData() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [snack, setSnack] = useState('');
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState('');
+  const [form, setForm] = useState<FarmerForm>(emptyFarmerForm);
+  const [snack, setSnack] = useState<{ message: string; severity: 'success' | 'error' } | null>(null);
 
   const loadFarmers = useCallback(async () => {
     setLoading(true);
@@ -69,9 +108,13 @@ export function FarmersData() {
     }
   }, [search, barangayFilter, page]);
 
-  useEffect(() => {
+  const loadStats = useCallback(() => {
     api.getFarmerStats().then(setStats).catch(() => setStats(null));
   }, []);
+
+  useEffect(() => {
+    loadStats();
+  }, [loadStats]);
 
   useEffect(() => {
     const timer = setTimeout(loadFarmers, 300);
@@ -88,9 +131,83 @@ export function FarmersData() {
       const blob = await api.exportCsv('farmers');
       downloadBlob(blob, 'rizal-fims-farmers.csv');
     } catch {
-      setSnack('Export failed');
+      setSnack({ message: 'Export failed', severity: 'error' });
     } finally {
       setExporting(false);
+    }
+  };
+
+  const setField = (field: keyof FarmerForm, value: string) => {
+    setForm((prev) => ({ ...prev, [field]: value }));
+    setFormError('');
+  };
+
+  const openAddFarmer = () => {
+    setForm(emptyFarmerForm);
+    setFormError('');
+    setDialogOpen(true);
+  };
+
+  const handleAddFarmer = async () => {
+    const rsbsaNumber = form.rsbsaNumber.trim();
+    const lastName = form.lastName.trim();
+    const firstName = form.firstName.trim();
+    const barangay = barangays.find((b) => String(b.id) === form.barangayId);
+    const farmArea = Number(form.farmArea);
+    const areaPlanted = form.areaPlanted.trim() === '' ? null : Number(form.areaPlanted);
+
+    if (!rsbsaNumber || !lastName || !firstName || !form.sex || !barangay) {
+      setFormError('RSBSA number, name, sex, and barangay are required');
+      return;
+    }
+    if (!Number.isFinite(farmArea) || farmArea < 0) {
+      setFormError('Farm area must be 0 or greater');
+      return;
+    }
+    if (areaPlanted != null && (!Number.isFinite(areaPlanted) || areaPlanted < 0)) {
+      setFormError('Area planted must be 0 or greater');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const created = await api.createFarmer({
+        rsbsaNumber,
+        lastName,
+        firstName,
+        middleName: form.middleName.trim(),
+        suffix: form.suffix.trim(),
+        farmerAddress1: barangay.name,
+        farmerAddress2: form.farmerAddress2.trim() || 'Rizal',
+        farmerAddress3: form.farmerAddress3.trim() || 'Palawan',
+        farmAddress2: form.farmAddress2.trim(),
+        farmAddress3: form.farmAddress3.trim(),
+        birthdate: form.birthdate || null,
+        sex: form.sex,
+        contactNo: form.contactNo.trim(),
+        fourPs: form.fourPs === 'YES',
+        indigenous: form.indigenous === 'YES',
+        pwd: form.pwd === 'YES',
+        farmArea,
+        areaPlanted,
+        commodity: form.commodity.trim() || 'Rice/Palay',
+        farmerGeoCode: form.farmerGeoCode.trim() || null,
+        farmGeoCode: form.farmGeoCode.trim() || null,
+        barangayId: barangay.id,
+      });
+      setDialogOpen(false);
+      setSearch(created.rsbsaNumber);
+      setBarangayFilter(created.barangay || barangay.name);
+      setPage(1);
+      setSnack({
+        message: `Farmer added to Brgy. ${created.barangay || barangay.name}`,
+        severity: 'success',
+      });
+      loadStats();
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Failed to add farmer');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -98,21 +215,28 @@ export function FarmersData() {
     <Box>
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1, flexWrap: 'wrap', gap: 2 }}>
         <Box>
-          <Typography variant="h5" fontWeight={600} gutterBottom>
+          <Typography variant="h5" gutterBottom sx={{ fontWeight: 600 }}>
             Farmers Data (FIMS)
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Full Rizal FIMS registry — all fields from the source Excel file
           </Typography>
         </Box>
-        <Button
-          variant="outlined"
-          startIcon={<Download />}
-          onClick={handleExport}
-          disabled={exporting}
-        >
-          {exporting ? 'Exporting...' : 'Export CSV'}
-        </Button>
+        <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+          {isAdmin && (
+            <Button variant="contained" startIcon={<Add />} onClick={openAddFarmer}>
+              Add New Farmer
+            </Button>
+          )}
+          <Button
+            variant="outlined"
+            startIcon={<Download />}
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting...' : 'Export CSV'}
+          </Button>
+        </Box>
       </Box>
 
       {stats && (
@@ -121,7 +245,7 @@ export function FarmersData() {
             <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
               <People color="primary" sx={{ fontSize: 40 }} />
               <Box>
-                <Typography variant="h4" fontWeight={700}>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
                   {stats.total.toLocaleString()}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -134,7 +258,7 @@ export function FarmersData() {
             <Paper sx={{ p: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
               <Agriculture color="success" sx={{ fontSize: 40 }} />
               <Box>
-                <Typography variant="h4" fontWeight={700}>
+                <Typography variant="h4" sx={{ fontWeight: 700 }}>
                   {stats.byBarangay.length}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
@@ -154,12 +278,14 @@ export function FarmersData() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ minWidth: 280, flex: 1 }}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <Search fontSize="small" />
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Search fontSize="small" />
+                  </InputAdornment>
+                ),
+              },
             }}
           />
           <TextField
@@ -185,6 +311,7 @@ export function FarmersData() {
           <TableHead>
             <TableRow sx={{ bgcolor: '#f5f5f5' }}>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>RSBSA Number</TableCell>
+              <TableCell sx={{ whiteSpace: 'nowrap' }}>Barangay</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>Last Name</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>First Name</TableCell>
               <TableCell sx={{ whiteSpace: 'nowrap' }}>Middle Name</TableCell>
@@ -210,13 +337,13 @@ export function FarmersData() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={21} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={22} align="center" sx={{ py: 4 }}>
                   Loading farmers...
                 </TableCell>
               </TableRow>
             ) : farmers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={21} align="center" sx={{ py: 4 }}>
+                <TableCell colSpan={22} align="center" sx={{ py: 4 }}>
                   No farmers found
                 </TableCell>
               </TableRow>
@@ -226,6 +353,7 @@ export function FarmersData() {
                   <TableCell sx={{ fontFamily: 'monospace', fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
                     {f.rsbsaNumber}
                   </TableCell>
+                  <TableCell sx={{ whiteSpace: 'nowrap', fontWeight: 600 }}>{f.barangay || '—'}</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{f.lastName}</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{f.firstName}</TableCell>
                   <TableCell sx={{ whiteSpace: 'nowrap' }}>{f.middleName}</TableCell>
@@ -262,8 +390,274 @@ export function FarmersData() {
         )}
       </Box>
 
-      <Snackbar open={!!snack} autoHideDuration={4000} onClose={() => setSnack('')}>
-        <Alert severity="error" onClose={() => setSnack('')}>{snack}</Alert>
+      <Dialog
+        open={dialogOpen}
+        onClose={() => !submitting && setDialogOpen(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>Add New Farmer</DialogTitle>
+        <DialogContent sx={dialogContentSx}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
+            Same fields as the FIMS farmers registry
+          </Typography>
+          {formError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              {formError}
+            </Alert>
+          )}
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+            <Typography variant="subtitle2" color="text.secondary">
+              Farmer identity
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="RSBSA Number"
+                required
+                value={form.rsbsaNumber}
+                onChange={(e) => setField('rsbsaNumber', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 220, flex: 1 }}
+              />
+              <TextField
+                label="Last Name"
+                required
+                value={form.lastName}
+                onChange={(e) => setField('lastName', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+              <TextField
+                label="First Name"
+                required
+                value={form.firstName}
+                onChange={(e) => setField('firstName', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Middle Name"
+                value={form.middleName}
+                onChange={(e) => setField('middleName', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+              <TextField
+                label="Suffix"
+                value={form.suffix}
+                onChange={(e) => setField('suffix', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 120, flex: 1 }}
+              />
+              <TextField
+                label="Birthdate"
+                type="date"
+                value={form.birthdate}
+                onChange={(e) => setField('birthdate', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+              <TextField
+                select
+                label="Sex"
+                required
+                value={form.sex}
+                onChange={(e) => setField('sex', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 140, flex: 1 }}
+              >
+                <MenuItem value="Male">Male</MenuItem>
+                <MenuItem value="Female">Female</MenuItem>
+              </TextField>
+              <TextField
+                label="Contact No"
+                value={form.contactNo}
+                onChange={(e) => setField('contactNo', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+            </Box>
+
+            <Typography variant="subtitle2" color="text.secondary">
+              Address
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                select
+                label="Designated Barangay"
+                required
+                value={form.barangayId}
+                onChange={(e) => {
+                  const id = e.target.value;
+                  const name = barangays.find((b) => String(b.id) === id)?.name ?? '';
+                  setForm((prev) => ({
+                    ...prev,
+                    barangayId: id,
+                    farmerAddress1: name,
+                  }));
+                  setFormError('');
+                }}
+                helperText="Farmer will appear under this barangay in Farmers Data and report forms"
+                {...standardInputProps}
+                sx={{ minWidth: 220, flex: 1 }}
+              >
+                {barangays.map((b) => (
+                  <MenuItem key={b.id} value={String(b.id)}>
+                    {b.name}
+                  </MenuItem>
+                ))}
+              </TextField>
+              <TextField
+                label="Farmer Address 1"
+                value={form.farmerAddress1}
+                helperText="Auto-filled from designated barangay"
+                {...standardInputProps}
+                slotProps={{
+                  ...standardInputProps.slotProps,
+                  input: { readOnly: true },
+                }}
+                sx={{ minWidth: 200, flex: 1 }}
+              />
+              <TextField
+                label="Farmer Address 2"
+                value={form.farmerAddress2}
+                onChange={(e) => setField('farmerAddress2', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+              <TextField
+                label="Farmer Address 3"
+                value={form.farmerAddress3}
+                onChange={(e) => setField('farmerAddress3', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Farm Address 2"
+                value={form.farmAddress2}
+                onChange={(e) => setField('farmAddress2', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 200, flex: 1 }}
+              />
+              <TextField
+                label="Farm Address 3"
+                value={form.farmAddress3}
+                onChange={(e) => setField('farmAddress3', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 200, flex: 1 }}
+              />
+            </Box>
+
+            <Typography variant="subtitle2" color="text.secondary">
+              Farm details
+            </Typography>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Farm Area (ha)"
+                type="number"
+                required
+                value={form.farmArea}
+                onChange={(e) => setField('farmArea', e.target.value)}
+                {...standardInputProps}
+                slotProps={{
+                  ...standardInputProps.slotProps,
+                  htmlInput: { min: 0, step: 0.01 },
+                }}
+                sx={{ minWidth: 150, flex: 1 }}
+              />
+              <TextField
+                label="Area Planted (ha)"
+                type="number"
+                value={form.areaPlanted}
+                onChange={(e) => setField('areaPlanted', e.target.value)}
+                {...standardInputProps}
+                slotProps={{
+                  ...standardInputProps.slotProps,
+                  htmlInput: { min: 0, step: 0.01 },
+                }}
+                sx={{ minWidth: 150, flex: 1 }}
+              />
+              <TextField
+                label="Commodity"
+                value={form.commodity}
+                onChange={(e) => setField('commodity', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 160, flex: 1 }}
+              />
+              <TextField
+                select
+                label="4Ps"
+                value={form.fourPs}
+                onChange={(e) => setField('fourPs', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 120 }}
+              >
+                <MenuItem value="NO">NO</MenuItem>
+                <MenuItem value="YES">YES</MenuItem>
+              </TextField>
+              <TextField
+                select
+                label="Indigenous"
+                value={form.indigenous}
+                onChange={(e) => setField('indigenous', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 140 }}
+              >
+                <MenuItem value="NO">NO</MenuItem>
+                <MenuItem value="YES">YES</MenuItem>
+              </TextField>
+              <TextField
+                select
+                label="PWD"
+                value={form.pwd}
+                onChange={(e) => setField('pwd', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 120 }}
+              >
+                <MenuItem value="NO">NO</MenuItem>
+                <MenuItem value="YES">YES</MenuItem>
+              </TextField>
+            </Box>
+            <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
+              <TextField
+                label="Farmer GeoCode"
+                value={form.farmerGeoCode}
+                onChange={(e) => setField('farmerGeoCode', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 200, flex: 1 }}
+              />
+              <TextField
+                label="Farm GeoCode"
+                value={form.farmGeoCode}
+                onChange={(e) => setField('farmGeoCode', e.target.value)}
+                {...standardInputProps}
+                sx={{ minWidth: 200, flex: 1 }}
+              />
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={dialogActionsSx}>
+          <Button onClick={() => setDialogOpen(false)} color="inherit" disabled={submitting}>
+            Cancel
+          </Button>
+          <Button variant="contained" onClick={() => void handleAddFarmer()} disabled={submitting}>
+            {submitting ? 'Saving...' : 'Add Farmer'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Snackbar
+        open={!!snack}
+        autoHideDuration={4000}
+        onClose={() => setSnack(null)}
+      >
+        <Alert severity={snack?.severity ?? 'info'} onClose={() => setSnack(null)}>
+          {snack?.message}
+        </Alert>
       </Snackbar>
     </Box>
   );

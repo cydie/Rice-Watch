@@ -192,7 +192,7 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
                 {m.label}
               </Typography>
-              <Typography variant="h6" fontWeight="bold" sx={{ letterSpacing: '-0.02em' }}>
+              <Typography variant="h6" sx={{ fontWeight: "bold",  letterSpacing: '-0.02em' }}>
                 {m.value}
               </Typography>
             </Paper>
@@ -209,7 +209,7 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
               label="Report Type"
               value={reportType}
               onChange={(e) => setReportType(e.target.value)}
-              InputLabelProps={{ shrink: true }}
+              slotProps={{ inputLabel: { shrink: true } }}
             >
               <MenuItem value="production">Production Report</MenuItem>
               <MenuItem value="planting">Planting Report</MenuItem>
@@ -223,10 +223,10 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
       <Grid container spacing={{ xs: 2.5, md: 3.5 }}>
         <Grid size={{ xs: 12 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Seasonal Production — {meta.municipality}, {meta.province}
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mb: 1 }}>
               Aggregated from planting season labels and harvest totals in the database (not synthetic years).
             </Typography>
             <ResponsiveContainer width="100%" height={300}>
@@ -247,7 +247,7 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 8 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Barangay Ranking (by planted area)
             </Typography>
             <ResponsiveContainer width="100%" height={300}>
@@ -288,7 +288,7 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 4 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Variety Distribution (normalized)
             </Typography>
             <ResponsiveContainer width="100%" height={300}>
@@ -314,10 +314,10 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Yield by Harvest Period (YYYY-MM)
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mb: 1 }}>
               Real monthly aggregates from harvest dates — empty if no harvest rows exist.
             </Typography>
             <ResponsiveContainer width="100%" height={280}>
@@ -341,7 +341,7 @@ export function Analytics({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Irrigation Split
             </Typography>
             <ResponsiveContainer width="100%" height={280}>

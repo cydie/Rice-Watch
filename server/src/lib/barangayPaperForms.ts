@@ -1,19 +1,10 @@
-import * as fs from 'node:fs';
-import * as path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { prisma } from './prisma.js';
 import { normalizeBarangayName } from './helpers.js';
 import {
   buildHarvestMasterlistRows,
   buildPlantingMasterlistRows,
 } from './officialTargets.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const LOGO_CANDIDATES = [
-  path.resolve(__dirname, '../assets/logo-rizal.png'),
-  path.resolve(__dirname, '../../assets/logo-rizal.png'),
-  path.resolve(__dirname, '../../../public/logo-rizal.png'),
-];
+import { getReportLogos } from './reportLogos.js';
 
 export type BarangayPaperType = 'planting' | 'harvest';
 export type BarangayPaperSource = 'blank' | 'data' | 'official';
@@ -45,16 +36,6 @@ function formatDisplayDate(d?: Date | null) {
     month: 'long',
     day: 'numeric',
   });
-}
-
-function loadLogoDataUri(): string {
-  for (const candidate of LOGO_CANDIDATES) {
-    if (fs.existsSync(candidate)) {
-      const buf = fs.readFileSync(candidate);
-      return `data:image/png;base64,${buf.toString('base64')}`;
-    }
-  }
-  return '';
 }
 
 function padRows(rows: PaperRow[], minRows: number): PaperRow[] {
@@ -261,7 +242,7 @@ export async function buildBarangayPaperHtml(options: {
   const dateSubmitted = options.dateSubmitted || formatDisplayDate(new Date());
   const title = options.type === 'planting' ? 'PLANTING REPORT' : 'HARVESTING REPORT';
   const minRows = options.type === 'planting' ? 30 : 25;
-  const logo = loadLogoDataUri();
+  const { daDataUri, rizalDataUri } = getReportLogos();
 
   let rows: PaperRow[] = [];
   if (source === 'official') {
@@ -328,25 +309,41 @@ export async function buildBarangayPaperHtml(options: {
       color: #2e7d32;
     }
     .header {
+      display: grid;
+      grid-template-columns: 90px 1fr 90px;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .header-center {
       text-align: center;
-      margin-bottom: 8px;
     }
     .logo {
-      width: 78px;
-      height: 78px;
+      width: 82px;
+      height: 82px;
       object-fit: contain;
-      margin: 0 auto 4px;
       display: block;
+    }
+    .logo-slot {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 82px;
     }
     .gov {
       font-size: 13px;
       line-height: 1.25;
       margin: 0;
     }
-    .muni {
-      font-size: 14px;
+    .office {
+      font-size: 13px;
       font-weight: bold;
-      margin: 0;
+      margin: 2px 0 0;
+    }
+    .muni {
+      font-size: 15px;
+      font-weight: bold;
+      margin: 2px 0 0;
     }
     .title {
       margin: 10px 0 8px;
@@ -354,6 +351,7 @@ export async function buildBarangayPaperHtml(options: {
       font-weight: bold;
       letter-spacing: 0.5px;
       text-decoration: underline;
+      text-align: center;
     }
     .meta {
       display: flex;
@@ -424,12 +422,20 @@ export async function buildBarangayPaperHtml(options: {
       <button type="button" onclick="window.print()">Print / Save as PDF</button>
     </div>
     <div class="header">
-      ${logo ? `<img class="logo" src="${logo}" alt="Municipality of Dr. Jose P. Rizal seal" />` : ''}
-      <p class="gov">Republic of the Philippines</p>
-      <p class="gov">Province of Palawan</p>
-      <p class="muni">Municipality of Dr. Jose P. Rizal</p>
-      <h1 class="title">${escapeHtml(title)}</h1>
+      <div class="logo-slot">
+        ${daDataUri ? `<img class="logo" src="${daDataUri}" alt="Department of Agriculture logo" />` : ''}
+      </div>
+      <div class="header-center">
+        <p class="gov">Republic of the Philippines</p>
+        <p class="office">Department of Agriculture</p>
+        <p class="gov">Province of Palawan</p>
+        <p class="muni">Municipality of Dr. Jose P. Rizal</p>
+      </div>
+      <div class="logo-slot">
+        ${rizalDataUri ? `<img class="logo" src="${rizalDataUri}" alt="Municipality of Dr. Jose P. Rizal seal" />` : ''}
+      </div>
     </div>
+    <h1 class="title">${escapeHtml(title)}</h1>
     <div class="meta">
       <div>Barangay: <span>${escapeHtml(barangay)}</span></div>
       <div>As of: <span>${escapeHtml(asOf)}</span></div>

@@ -103,7 +103,7 @@ export function ForgotPassword({ onNavigateToLogin }: ForgotPasswordProps) {
           <IconButton onClick={onNavigateToLogin} sx={{ mr: 1 }} aria-label="back">
             <ArrowBack />
           </IconButton>
-          <Typography variant="h5" fontWeight="bold" color="primary">
+          <Typography variant="h5" color="primary" sx={{ fontWeight: "bold" }}>
             Reset Password
           </Typography>
         </Box>
@@ -162,7 +162,7 @@ export function ForgotPassword({ onNavigateToLogin }: ForgotPasswordProps) {
               margin="normal"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              inputProps={{ maxLength: 6 }}
+              slotProps={{ htmlInput: { maxLength: 6 } }}
             />
 
             <Button

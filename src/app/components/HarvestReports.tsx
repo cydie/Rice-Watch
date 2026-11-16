@@ -182,7 +182,7 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2, flexWrap: 'wrap', gap: 2 }}>
         <Box>
           {!embedded && (
-            <Typography variant="h4" fontWeight="bold">
+            <Typography variant="h4" sx={{ fontWeight: "bold" }}>
               Harvesting Reports
             </Typography>
           )}
@@ -223,12 +223,14 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
           fullWidth
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <Search />
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <Search />
+                </InputAdornment>
+              ),
+            },
           }}
         />
       </Paper>
@@ -364,7 +366,6 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
                   onChange={(e) => setFormData({ ...formData, harvestDate: e.target.value })}
                   fullWidth
                   {...standardInputProps}
-                  InputLabelProps={{ shrink: true }}
                   sx={{
                     ...(standardInputProps.sx as object),
                     '& input[type="date"]': {
@@ -393,12 +394,15 @@ export function HarvestReports({ embedded = false }: { embedded?: boolean } = {}
                     {...params}
                     label="Variety Planted"
                     required
-                    InputLabelProps={{
-                      ...params.InputLabelProps,
-                      ...standardInputProps.InputLabelProps,
-                      shrink: true,
-                    }}
                     sx={standardInputProps.sx}
+                    slotProps={{
+                      ...params.slotProps,
+                      inputLabel: {
+                        ...params.slotProps.inputLabel,
+                        ...standardInputProps.slotProps.inputLabel,
+                        shrink: true,
+                      },
+                    }}
                   />
                 )}
               />

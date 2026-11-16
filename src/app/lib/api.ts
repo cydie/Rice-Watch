@@ -160,6 +160,8 @@ export const api = {
   },
   getFarmerStats: () => request<FarmerStats>('/farmers/stats'),
   getFarmer: (id: number) => request<FarmerApi>(`/farmers/${id}`),
+  createFarmer: (data: CreateFarmerPayload) =>
+    request<FarmerApi>('/farmers', { method: 'POST', body: JSON.stringify(data) }),
 
   exportCsv: async (type: string) => {
     const token = getToken();
@@ -489,6 +491,31 @@ export interface FarmerApi {
   farmGeoCode: string | null;
   barangay: string;
   barangayId: number | null;
+}
+
+export interface CreateFarmerPayload {
+  rsbsaNumber: string;
+  lastName: string;
+  firstName: string;
+  middleName?: string;
+  suffix?: string;
+  farmerAddress1: string;
+  farmerAddress2?: string;
+  farmerAddress3?: string;
+  farmAddress2?: string;
+  farmAddress3?: string;
+  birthdate?: string | null;
+  sex: string;
+  contactNo?: string;
+  fourPs?: boolean;
+  indigenous?: boolean;
+  pwd?: boolean;
+  farmArea: number;
+  areaPlanted?: number | null;
+  commodity?: string;
+  farmerGeoCode?: string | null;
+  farmGeoCode?: string | null;
+  barangayId: number;
 }
 
 export interface FarmersListResponse {

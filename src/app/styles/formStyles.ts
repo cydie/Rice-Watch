@@ -91,16 +91,18 @@ export const dialogActionsSx: SxProps<Theme> = {
 };
 
 export const standardInputProps = {
-  InputLabelProps: {
-    shrink: true,
-    sx: {
-      fontSize: '1rem',
-      fontWeight: 500,
-      '&.MuiInputLabel-shrink': {
-        transform: 'translate(14px, -9px) scale(0.75)'
-      },
-      '&.Mui-focused': {
-        color: '#2e7d32'
+  slotProps: {
+    inputLabel: {
+      shrink: true,
+      sx: {
+        fontSize: '1rem',
+        fontWeight: 500,
+        '&.MuiInputLabel-shrink': {
+          transform: 'translate(14px, -9px) scale(0.75)'
+        },
+        '&.Mui-focused': {
+          color: '#2e7d32'
+        }
       }
     }
   },

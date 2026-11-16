@@ -158,7 +158,7 @@ export function MunicipalityManagement({ embedded = false }: { embedded?: boolea
       {!embedded && (
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 3 }}>
           <Box>
-            <Typography variant="h4" fontWeight="bold">
+            <Typography variant="h4" sx={{ fontWeight: "bold" }}>
               Barangay Management
             </Typography>
             <Typography variant="body2" color="text.secondary">
@@ -182,49 +182,49 @@ export function MunicipalityManagement({ embedded = false }: { embedded?: boolea
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Paper sx={{ p: 3, textAlign: 'center', borderRadius: 3 }}>
                 <LocationCity sx={{ fontSize: 48, color: '#2e7d32', mb: 1 }} />
-                <Typography variant="h6" fontWeight="bold">Rizal</Typography>
+                <Typography variant="h6" sx={{ fontWeight: "bold" }}>Rizal</Typography>
                 <Typography variant="caption" color="text.secondary">Municipality</Typography>
               </Paper>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography variant="body2" color="text.secondary">Total Barangays</Typography>
-                <Typography variant="h4" fontWeight="bold">{barangays.length}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: "bold" }}>{barangays.length}</Typography>
               </Paper>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography variant="body2" color="text.secondary">Total Sitios/Puroks</Typography>
-                <Typography variant="h4" fontWeight="bold">{sitios.length}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: "bold" }}>{sitios.length}</Typography>
               </Paper>
             </Grid>
             <Grid size={{ xs: 12, sm: 6, md: 3 }}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
                 <Typography variant="body2" color="text.secondary">Total Area</Typography>
-                <Typography variant="h4" fontWeight="bold">{totalArea.toFixed(1)}</Typography>
+                <Typography variant="h4" sx={{ fontWeight: "bold" }}>{totalArea.toFixed(1)}</Typography>
                 <Typography variant="caption" color="text.secondary">hectares</Typography>
               </Paper>
             </Grid>
             <Grid size={{ xs: 12 }}>
               <Paper sx={{ p: 3, borderRadius: 3 }}>
-                <Typography variant="h6" fontWeight="bold" gutterBottom>Area Classification</Typography>
+                <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>Area Classification</Typography>
                 <Grid container spacing={2}>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <Box sx={{ p: 2, bgcolor: '#e3f2fd', borderRadius: 2 }}>
                       <Typography variant="body2" color="text.secondary">Irrigated</Typography>
-                      <Typography variant="h5" fontWeight="bold" color="primary">{irrigatedArea.toFixed(1)} ha</Typography>
+                      <Typography variant="h5" color="primary" sx={{ fontWeight: "bold" }}>{irrigatedArea.toFixed(1)} ha</Typography>
                     </Box>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <Box sx={{ p: 2, bgcolor: '#e8f5e9', borderRadius: 2 }}>
                       <Typography variant="body2" color="text.secondary">Rainfed</Typography>
-                      <Typography variant="h5" fontWeight="bold" color="success">{rainfedArea.toFixed(1)} ha</Typography>
+                      <Typography variant="h5" color="success" sx={{ fontWeight: "bold" }}>{rainfedArea.toFixed(1)} ha</Typography>
                     </Box>
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <Box sx={{ p: 2, bgcolor: '#fff3e0', borderRadius: 2 }}>
                       <Typography variant="body2" color="text.secondary">Total</Typography>
-                      <Typography variant="h5" fontWeight="bold">{totalArea.toFixed(1)} ha</Typography>
+                      <Typography variant="h5" sx={{ fontWeight: "bold" }}>{totalArea.toFixed(1)} ha</Typography>
                     </Box>
                   </Grid>
                 </Grid>
@@ -348,7 +348,7 @@ export function MunicipalityManagement({ embedded = false }: { embedded?: boolea
         onClose={() => setBarangayDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 3, m: { xs: 2, sm: 3 } } }}
+        slotProps={{ paper: { sx: { borderRadius: 3, m: { xs: 2, sm: 3 } } } }}
       >
         <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
           {editingBarangay ? 'Edit Barangay' : 'Add New Barangay'}
@@ -381,8 +381,11 @@ export function MunicipalityManagement({ embedded = false }: { embedded?: boolea
               onChange={(e) =>
                 setBarangayFormData({ ...barangayFormData, area: parseFloat(e.target.value) })
               }
-              inputProps={{ min: 0, step: 0.1 }}
               {...standardInputProps}
+              slotProps={{
+                ...standardInputProps.slotProps,
+                htmlInput: { min: 0, step: 0.1 },
+              }}
             />
             <TextField
               select
@@ -425,7 +428,7 @@ export function MunicipalityManagement({ embedded = false }: { embedded?: boolea
         onClose={() => setSitioDialogOpen(false)}
         maxWidth="sm"
         fullWidth
-        PaperProps={{ sx: { borderRadius: 3, m: { xs: 2, sm: 3 } } }}
+        slotProps={{ paper: { sx: { borderRadius: 3, m: { xs: 2, sm: 3 } } } }}
       >
         <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>
           {editingSitio ? 'Edit Sitio/Purok' : 'Add New Sitio/Purok'}
@@ -453,8 +456,11 @@ export function MunicipalityManagement({ embedded = false }: { embedded?: boolea
               required
               helperText="Select the parent barangay"
               {...standardInputProps}
-              SelectProps={{
-                MenuProps: { PaperProps: { sx: { maxHeight: 280 } } },
+              slotProps={{
+                ...standardInputProps.slotProps,
+                select: {
+                  MenuProps: { slotProps: { paper: { sx: { maxHeight: 280 } } } },
+                },
               }}
             >
               <MenuItem value="" disabled>

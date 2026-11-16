@@ -164,7 +164,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
   return (
     <Box sx={{ p: { xs: 2, md: 3 } }}>
       {!embedded && (
-        <Typography variant="h4" fontWeight="bold" gutterBottom>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: "bold" }}>
           Paper Reports & Upload
         </Typography>
       )}
@@ -187,7 +187,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
       <Paper sx={{ p: 2.5, mb: 3, borderRadius: 3, border: '1px solid', borderColor: 'success.light' }}>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
           <FactCheck color="success" />
-          <Typography variant="h6" fontWeight="bold">
+          <Typography variant="h6" sx={{ fontWeight: "bold" }}>
             Technician input guide (official DS 2026)
           </Typography>
           {!isTechnician && (
@@ -272,7 +272,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
 
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: "bold" }}>
                   What you must type (exact values)
                 </Typography>
                 <Typography variant="body2" color="text.secondary" component="div">
@@ -283,7 +283,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
                 </Typography>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                <Typography variant="subtitle2" fontWeight="bold" gutterBottom>
+                <Typography variant="subtitle2" gutterBottom sx={{ fontWeight: "bold" }}>
                   Workflow for Department Head accuracy
                 </Typography>
                 <List dense disablePadding>
@@ -291,7 +291,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
                     <ListItem key={step} disableGutters sx={{ py: 0.25 }}>
                       <ListItemText
                         primary={`${i + 1}. ${step}`}
-                        primaryTypographyProps={{ variant: 'body2', color: 'text.secondary' }}
+                        slotProps={{ primary: { variant: 'body2', color: 'text.secondary' } }}
                       />
                     </ListItem>
                   ))}
@@ -306,7 +306,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
         {KINDS.map((k) => (
           <Grid key={k.type} size={{ xs: 12, md: 4 }}>
             <Paper sx={{ p: 2.5, borderRadius: 3, height: '100%' }}>
-              <Typography variant="h6" fontWeight="bold" gutterBottom>
+              <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
                 {k.title}
               </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2, minHeight: 48 }}>
@@ -413,7 +413,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
               {guide?.columns?.[k.type] && (
                 <>
                   <Divider sx={{ my: 1.5 }} />
-                  <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                  <Typography variant="caption" color="text.secondary" gutterBottom sx={{ display: "block" }}>
                     Required columns
                   </Typography>
                   <Typography variant="caption" color="text.secondary" component="div">
@@ -429,7 +429,7 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
       <Paper sx={{ p: 2.5, mt: 3, borderRadius: 3 }}>
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', mb: 1 }}>
           <Description color="primary" />
-          <Typography variant="h6" fontWeight="bold">
+          <Typography variant="h6" sx={{ fontWeight: "bold" }}>
             How it becomes accurate to the papers
           </Typography>
         </Box>
@@ -442,12 +442,12 @@ export function ReportPapers({ embedded = false }: { embedded?: boolean } = {}) 
             <li>Keep only your barangay rows; irrigation and seed codes must match the allowed values above.</li>
             <li>Upload replaces that barangay’s reports only — other barangays stay intact.</li>
             <li>
-              Use <strong>Print / export paper form</strong> for the barangay planting or harvesting sheet (with the
-              municipal logo), scoped to the technician’s barangay only.
+              Use <strong>Print / export paper form</strong> for the barangay planting or harvesting sheet (DA logo +
+              Rizal municipal seal), scoped to the technician’s barangay only.
             </li>
             <li>
-              Department Head uses <strong>Generate municipal paper</strong> to rebuild Rizal cumulative totals in the
-              same structure as the official papers in <code>data/official/</code>.
+              Department Head uses <strong>Generate municipal paper</strong> to rebuild Rizal cumulative Excel totals
+              with the same DA + Rizal logos as the printable papers.
             </li>
           </ol>
         </Typography>

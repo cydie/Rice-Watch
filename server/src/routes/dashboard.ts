@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { authRequired } from '../middleware/auth.js';
 import { getTechnicianScope } from '../lib/technicianScope.js';
@@ -10,11 +11,11 @@ router.get('/', async (req, res) => {
   const scope = await getTechnicianScope(req);
   const reportWhere = scope.reportWhere;
   const farmerWhere = scope.barangayId != null ? { barangayId: scope.barangayId } : scope.isTechnician ? { barangayId: { in: [] as number[] } } : {};
-  const activityWhere =
+  const activityWhere: Prisma.ActivityWhereInput =
     scope.isTechnician && scope.barangayName
-      ? { location: { contains: scope.barangayName, mode: 'insensitive' as const } }
+      ? { location: { contains: scope.barangayName, mode: 'insensitive' } }
       : scope.isTechnician
-        ? { id: { in: [] as string[] } }
+        ? { id: { in: [] } }
         : {};
 
   const barangayListWhere =

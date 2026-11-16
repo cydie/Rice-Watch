@@ -208,7 +208,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
               sx={{ mt: 1.5 }}
             />
           )}
-          <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block",  mt: 1 }}>
             Last synced: {formatSyncedAt(data.lastSyncedAt)}
           </Typography>
         </Box>
@@ -254,7 +254,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 }, height: '100%' }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom sx={{ mb: 1 }}>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold",  mb: 1 }}>
               Harvest Coverage
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -264,7 +264,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
             <Box sx={{ mb: 2 }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2">Harvested</Typography>
-                <Typography variant="body2" fontWeight={600}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {data.coverage.harvested.toLocaleString()} ha
                 </Typography>
               </Box>
@@ -281,7 +281,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
               />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                 <Typography variant="body2">Still standing (est.)</Typography>
-                <Typography variant="body2" fontWeight={600}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
                   {data.coverage.standing.toLocaleString()} ha
                 </Typography>
               </Box>
@@ -306,14 +306,14 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 }, height: '100%' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
               <WarningAmber color="warning" />
-              <Typography variant="h6" fontWeight="bold">
+              <Typography variant="h6" sx={{ fontWeight: "bold" }}>
                 Field Risk Alerts
               </Typography>
             </Box>
             <Grid container spacing={2}>
               <Grid size={{ xs: 4 }}>
                 <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: '#fff8e1', borderRadius: 2 }}>
-                  <Typography variant="h5" fontWeight="bold" color="warning.dark">
+                  <Typography variant="h5" color="warning.dark" sx={{ fontWeight: "bold" }}>
                     {data.risks.damagedArea}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -323,7 +323,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
               </Grid>
               <Grid size={{ xs: 4 }}>
                 <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: '#fce4ec', borderRadius: 2 }}>
-                  <Typography variant="h5" fontWeight="bold" color="error.main">
+                  <Typography variant="h5" color="error.main" sx={{ fontWeight: "bold" }}>
                     {data.risks.pestAlertCount}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -333,7 +333,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
               </Grid>
               <Grid size={{ xs: 4 }}>
                 <Box sx={{ textAlign: 'center', p: 1.5, bgcolor: '#e3f2fd', borderRadius: 2 }}>
-                  <Typography variant="h5" fontWeight="bold" color="info.dark">
+                  <Typography variant="h5" color="info.dark" sx={{ fontWeight: "bold" }}>
                     {data.risks.irrigationIssues}
                   </Typography>
                   <Typography variant="caption" color="text.secondary">
@@ -350,7 +350,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               {isTechnician ? 'Barangay Summary' : 'Barangay Scoreboard'}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
@@ -397,7 +397,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, lg: 8 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Monthly Production Trends
             </Typography>
             <ResponsiveContainer width="100%" height={280}>
@@ -424,7 +424,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, lg: 4 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Top Producing Barangays
             </Typography>
             <ResponsiveContainer width="100%" height={280}>
@@ -441,7 +441,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 } }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Crop Stage Mix
             </Typography>
             <ResponsiveContainer width="100%" height={280}>
@@ -458,7 +458,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
 
         <Grid size={{ xs: 12, md: 6 }}>
           <Paper sx={{ ...modernCardSx, p: { xs: 3, md: 4 }, height: '100%' }}>
-            <Typography variant="h6" fontWeight="bold" gutterBottom>
+            <Typography variant="h6" gutterBottom sx={{ fontWeight: "bold" }}>
               Recent Field Activity
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5, mt: 1 }}>
@@ -483,7 +483,7 @@ export function Dashboard({ embedded = false }: { embedded?: boolean } = {}) {
                     }}
                   >
                     <Box>
-                      <Typography variant="body2" fontWeight="500">
+                      <Typography variant="body2" sx={{ fontWeight: "500" }}>
                         {activity.action}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">

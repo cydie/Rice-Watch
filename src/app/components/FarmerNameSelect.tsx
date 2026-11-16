@@ -26,7 +26,7 @@ export function FarmerNameSelect({
   sx,
 }: Props) {
   const { user } = useAuth();
-  const canRegisterFarmers = user?.role === 'admin' || user?.role === 'encoder';
+  const canRegisterFarmers = user?.role === 'admin';
   const [farmers, setFarmers] = useState<FarmerApi[]>([]);
   const [loading, setLoading] = useState(false);
   const [inputValue, setInputValue] = useState(value || '');
@@ -71,8 +71,8 @@ export function FarmerNameSelect({
       ? 'Loading farmers…'
       : farmers.length === 0
         ? canRegisterFarmers
-          ? `No farmers registered in ${barangay}. Register them under Farmers Data first.`
-          : `No farmers registered in ${barangay}. Ask the Department Head or Municipal Encoder to register the farmer first.`
+          ? `No farmers registered in ${barangay}. Add them under Farmers Data first.`
+          : `No farmers registered in ${barangay}. Ask the Department Head to add the farmer under Farmers Data.`
         : `Search ${farmers.length} registered farmer${farmers.length === 1 ? '' : 's'} in ${barangay}`;
 
   return (
@@ -130,20 +130,23 @@ export function FarmerNameSelect({
           required={required}
           helperText={helperText}
           error={Boolean(barangay) && !loading && farmers.length === 0}
-          InputLabelProps={{
-            ...params.InputLabelProps,
-            ...standardInputProps.InputLabelProps,
-            shrink: true,
-          }}
           sx={standardInputProps.sx}
-          InputProps={{
-            ...params.InputProps,
-            endAdornment: (
-              <>
-                {loading ? <CircularProgress color="inherit" size={18} /> : null}
-                {params.InputProps.endAdornment}
-              </>
-            ),
+          slotProps={{
+            ...params.slotProps,
+            inputLabel: {
+              ...params.slotProps.inputLabel,
+              ...standardInputProps.slotProps.inputLabel,
+              shrink: true,
+            },
+            input: {
+              ...params.slotProps.input,
+              endAdornment: (
+                <>
+                  {loading ? <CircularProgress color="inherit" size={18} /> : null}
+                  {params.slotProps.input.endAdornment}
+                </>
+              ),
+            },
           }}
         />
       )}

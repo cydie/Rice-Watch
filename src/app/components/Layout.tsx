@@ -152,10 +152,10 @@ export function Layout({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexGrow: 1, minWidth: 0 }}>
             <img src={RiceWatchLogo} alt="RiceWatch" style={{ height: 36 }} />
             <Box sx={{ minWidth: 0, display: { xs: 'none', sm: 'block' } }}>
-              <Typography variant="h6" noWrap fontWeight="bold">
+              <Typography variant="h6" noWrap sx={{ fontWeight: "bold" }}>
                 RiceWatch
               </Typography>
-              <Typography variant="caption" noWrap display="block">
+              <Typography variant="caption" noWrap sx={{ display: "block" }}>
                 Department of Agriculture - Rizal, Palawan
               </Typography>
             </Box>
@@ -175,7 +175,7 @@ export function Layout({
 
           <Menu anchorEl={notifAnchor} open={Boolean(notifAnchor)} onClose={() => setNotifAnchor(null)}>
             <Box sx={{ px: 2, py: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', minWidth: 280 }}>
-              <Typography variant="subtitle2" fontWeight="bold">
+              <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
                 Notifications
               </Typography>
               {unreadCount > 0 && (
@@ -196,7 +196,7 @@ export function Layout({
               notifications.slice(0, 5).map((n) => (
                 <MenuItem key={n.id} dense>
                   <Box>
-                    <Typography variant="body2" fontWeight={n.read ? 400 : 600}>
+                    <Typography variant="body2" sx={{ fontWeight: n.read ? 400 : 600 }}>
                       {n.title}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -210,7 +210,7 @@ export function Layout({
 
           <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
             <Box sx={{ px: 2, py: 1 }}>
-              <Typography variant="subtitle2" fontWeight="bold">
+              <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
                 {userName}
               </Typography>
               <Typography variant="caption" color="text.secondary">

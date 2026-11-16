@@ -196,7 +196,7 @@ router.get('/generate/:type', async (req, res) => {
   }
 });
 
-/** Printable barangay paper form matching DA planting/harvest forms (with municipal logo). */
+/** Printable barangay paper form matching DA planting/harvest forms (DA + Rizal logos). */
 router.get('/barangay-paper/:type', async (req, res) => {
   const rawType = String(req.params.type);
   const type: BarangayPaperType | null =

@@ -231,7 +231,7 @@ export function UserManagement({ embedded = false }: { embedded?: boolean } = {}
         <Box>
           {!embedded && (
             <>
-              <Typography variant="h4" fontWeight="bold">
+              <Typography variant="h4" sx={{ fontWeight: "bold" }}>
                 User Management
               </Typography>
               <Typography variant="body2" color="text.secondary">
@@ -393,17 +393,19 @@ export function UserManagement({ embedded = false }: { embedded?: boolean } = {}
             value={formData.password}
             onChange={(e) => handleChange('password', e.target.value)}
             helperText={editingUser ? 'Leave blank to keep the current password' : undefined}
-            InputLabelProps={standardInputProps.InputLabelProps}
-            sx={standardInputProps.sx}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              ...standardInputProps.slotProps,
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end">
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
             }}
+            sx={standardInputProps.sx}
           />
           <TextField
             fullWidth
@@ -413,17 +415,19 @@ export function UserManagement({ embedded = false }: { embedded?: boolean } = {}
             margin="normal"
             value={formData.confirmPassword}
             onChange={(e) => handleChange('confirmPassword', e.target.value)}
-            InputLabelProps={standardInputProps.InputLabelProps}
-            sx={standardInputProps.sx}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
-                    {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              ...standardInputProps.slotProps,
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end">
+                      {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
             }}
+            sx={standardInputProps.sx}
           />
         </DialogContent>
         <DialogActions sx={dialogActionsSx}>

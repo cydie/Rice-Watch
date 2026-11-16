@@ -1,6 +1,8 @@
 import { Router } from 'express';
+import { Prisma } from '@prisma/client';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma.js';
-import { authRequired } from '../middleware/auth.js';
+import { authRequired, requireRole } from '../middleware/auth.js';
 import { parseId } from '../lib/helpers.js';
 import { getTechnicianScope } from '../lib/technicianScope.js';
 
@@ -116,7 +118,7 @@ router.get('/', async (req, res) => {
     barangay = scope.barangayName || '__none__';
   }
 
-  const where: Record<string, unknown> = {};
+  const where: Prisma.FarmerWhereInput = {};
   if (scope.isTechnician && scope.barangayId != null) {
     where.barangayId = scope.barangayId;
   } else if (scope.isTechnician) {
@@ -149,6 +151,107 @@ router.get('/', async (req, res) => {
     data: farmers.map(serialize),
     pagination: { page, limit, total, totalPages: Math.ceil(total / limit) },
   });
+});
+
+const emptyToNull = z
+  .string()
+  .trim()
+  .optional()
+  .nullable()
+  .transform((value) => (value ? value : null));
+
+const farmerCreateSchema = z.object({
+  rsbsaNumber: z.string().trim().min(1, 'RSBSA number is required'),
+  lastName: z.string().trim().min(1, 'Last name is required'),
+  firstName: z.string().trim().min(1, 'First name is required'),
+  middleName: z.string().trim().optional().default(''),
+  suffix: z.string().trim().optional().default(''),
+  farmerAddress1: z.string().trim().min(1, 'Farmer address 1 is required'),
+  farmerAddress2: z.string().trim().optional().default(''),
+  farmerAddress3: z.string().trim().optional().default(''),
+  farmAddress2: z.string().trim().optional().default(''),
+  farmAddress3: z.string().trim().optional().default(''),
+  birthdate: emptyToNull,
+  sex: z.string().trim().min(1, 'Sex is required'),
+  contactNo: z.string().trim().optional().default(''),
+  fourPs: z.boolean().optional().default(false),
+  indigenous: z.boolean().optional().default(false),
+  pwd: z.boolean().optional().default(false),
+  farmArea: z.number().nonnegative('Farm area cannot be negative'),
+  areaPlanted: z.number().nonnegative('Area planted cannot be negative').nullable().optional(),
+  commodity: z.string().trim().optional().default('Rice/Palay'),
+  farmerGeoCode: emptyToNull,
+  farmGeoCode: emptyToNull,
+  barangayId: z.number().int().positive('Barangay is required'),
+});
+
+router.post('/', requireRole('admin'), async (req, res) => {
+  const parsed = farmerCreateSchema.safeParse(req.body);
+  if (!parsed.success) {
+    return res.status(400).json({ error: parsed.error.issues[0]?.message || 'Invalid farmer data' });
+  }
+
+  const barangay = await prisma.barangay.findUnique({ where: { id: parsed.data.barangayId } });
+  if (!barangay) return res.status(400).json({ error: 'Barangay not found' });
+
+  let birthdate: Date | null = null;
+  if (parsed.data.birthdate) {
+    birthdate = new Date(parsed.data.birthdate);
+    if (isNaN(birthdate.getTime())) return res.status(400).json({ error: 'Invalid birthdate' });
+  }
+
+  const duplicate = await prisma.farmer.findUnique({
+    where: { rsbsaNumber: parsed.data.rsbsaNumber },
+  });
+  if (duplicate) return res.status(409).json({ error: 'RSBSA number already exists' });
+
+  try {
+    // Keep FIMS Address 1 aligned with the designated barangay so filters,
+    // planting/harvest farmer pickers, and exports all resolve to that barangay.
+    const farmer = await prisma.farmer.create({
+      data: {
+        rsbsaNumber: parsed.data.rsbsaNumber,
+        lastName: parsed.data.lastName,
+        firstName: parsed.data.firstName,
+        middleName: parsed.data.middleName,
+        suffix: parsed.data.suffix,
+        farmerAddress1: barangay.name,
+        farmerAddress2: parsed.data.farmerAddress2 || 'Rizal',
+        farmerAddress3: parsed.data.farmerAddress3 || 'Palawan',
+        farmAddress2: parsed.data.farmAddress2,
+        farmAddress3: parsed.data.farmAddress3,
+        birthdate,
+        sex: parsed.data.sex,
+        contactNo: parsed.data.contactNo,
+        fourPs: parsed.data.fourPs,
+        indigenous: parsed.data.indigenous,
+        pwd: parsed.data.pwd,
+        farmArea: parsed.data.farmArea,
+        areaPlanted: parsed.data.areaPlanted ?? null,
+        commodity: parsed.data.commodity || 'Rice/Palay',
+        farmerGeoCode: parsed.data.farmerGeoCode,
+        farmGeoCode: parsed.data.farmGeoCode,
+        barangayId: barangay.id,
+      },
+      include: { barangay: true },
+    });
+
+    await prisma.activity.create({
+      data: {
+        action: `Farmer added: ${farmer.firstName} ${farmer.lastName} (${farmer.rsbsaNumber}) → Brgy. ${barangay.name}`,
+        location: `Brgy. ${barangay.name}`,
+        userId: req.user!.userId,
+      },
+    });
+
+    res.status(201).json(serialize(farmer));
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+      return res.status(409).json({ error: 'RSBSA number already exists' });
+    }
+    console.error(err);
+    res.status(500).json({ error: 'Failed to add farmer' });
+  }
 });
 
 router.get('/:id', async (req, res) => {

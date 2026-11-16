@@ -1,10 +1,12 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import ExcelJS from 'exceljs';
 import XLSX from 'xlsx';
 import { prisma } from './prisma.js';
 import { normalizeBarangayName } from './helpers.js';
 import { normalizeRiceVariety } from './riceVarieties.js';
+import { getDaLogoPath, getRizalLogoPath } from './reportLogos.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const TEMPLATES_DIR = path.resolve(__dirname, '../../../data/templates');
@@ -401,62 +403,251 @@ async function ingestStanding(
   return { created, barangays: touched, rows: rows.length };
 }
 
-/** Build municipal DA-style paper from DB aggregates. */
+async function applyExcelBranding(
+  workbook: ExcelJS.Workbook,
+  worksheet: ExcelJS.Worksheet,
+  options: {
+    title: string;
+    subtitle: string;
+    columnCount: number;
+  }
+) {
+  worksheet.pageSetup = {
+    orientation: 'landscape',
+    fitToPage: true,
+    fitToWidth: 1,
+    fitToHeight: 0,
+    margins: { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.2, footer: 0.2 },
+  };
+
+  worksheet.mergeCells(1, 1, 1, options.columnCount);
+  worksheet.mergeCells(2, 1, 2, options.columnCount);
+  worksheet.mergeCells(3, 1, 3, options.columnCount);
+  worksheet.mergeCells(4, 1, 4, options.columnCount);
+  worksheet.mergeCells(5, 1, 5, options.columnCount);
+
+  worksheet.getRow(1).height = 16;
+  worksheet.getRow(2).height = 16;
+  worksheet.getRow(3).height = 14;
+  worksheet.getRow(4).height = 14;
+  worksheet.getRow(5).height = 18;
+  worksheet.getRow(6).height = 14;
+  worksheet.getRow(7).height = 8;
+
+  const center = {
+    vertical: 'middle' as const,
+    horizontal: 'center' as const,
+  };
+
+  worksheet.getCell('A1').value = 'Republic of the Philippines';
+  worksheet.getCell('A1').font = { name: 'Calibri', size: 11, bold: true };
+  worksheet.getCell('A1').alignment = center;
+
+  worksheet.getCell('A2').value = 'Department of Agriculture';
+  worksheet.getCell('A2').font = { name: 'Calibri', size: 12, bold: true, color: { argb: 'FF1B5E20' } };
+  worksheet.getCell('A2').alignment = center;
+
+  worksheet.getCell('A3').value = 'REGIONAL FIELD OFFICE MIMAROPA · Rice Program';
+  worksheet.getCell('A3').font = { name: 'Calibri', size: 10 };
+  worksheet.getCell('A3').alignment = center;
+
+  worksheet.getCell('A4').value = 'Municipality of Dr. Jose P. Rizal, Palawan';
+  worksheet.getCell('A4').font = { name: 'Calibri', size: 11, bold: true };
+  worksheet.getCell('A4').alignment = center;
+
+  worksheet.getCell('A5').value = options.title;
+  worksheet.getCell('A5').font = { name: 'Calibri', size: 14, bold: true, underline: true };
+  worksheet.getCell('A5').alignment = center;
+
+  worksheet.getCell('A6').value = options.subtitle;
+  worksheet.getCell('A6').font = { name: 'Calibri', size: 9, italic: true, color: { argb: 'FF555555' } };
+  worksheet.mergeCells(6, 1, 6, options.columnCount);
+
+  const daLogo = getDaLogoPath();
+  const rizalLogo = getRizalLogoPath();
+  if (daLogo) {
+    const imageId = workbook.addImage({ filename: daLogo, extension: 'png' });
+    worksheet.addImage(imageId, {
+      tl: { col: 0.15, row: 0.15 },
+      ext: { width: 78, height: 78 },
+    });
+  }
+  if (rizalLogo) {
+    const imageId = workbook.addImage({ filename: rizalLogo, extension: 'png' });
+    const rightCol = Math.max(options.columnCount - 1.2, 3);
+    worksheet.addImage(imageId, {
+      tl: { col: rightCol, row: 0.15 },
+      ext: { width: 78, height: 78 },
+    });
+  }
+}
+
+function setRowValues(row: ExcelJS.Row, values: (string | number)[]) {
+  // ExcelJS row.values is 1-indexed; index 0 is ignored.
+  row.values = [undefined, ...values];
+}
+
+function styleHeaderRow(row: ExcelJS.Row, columnCount: number) {
+  row.height = 28;
+  for (let col = 1; col <= columnCount; col++) {
+    const cell = row.getCell(col);
+    cell.font = { name: 'Calibri', size: 9, bold: true, color: { argb: 'FFFFFFFF' } };
+    cell.fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'FF2E7D32' },
+    };
+    cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FF1B5E20' } },
+      left: { style: 'thin', color: { argb: 'FF1B5E20' } },
+      bottom: { style: 'thin', color: { argb: 'FF1B5E20' } },
+      right: { style: 'thin', color: { argb: 'FF1B5E20' } },
+    };
+  }
+}
+
+function styleDataRow(row: ExcelJS.Row, columnCount: number, emphasize = false) {
+  for (let col = 1; col <= columnCount; col++) {
+    const cell = row.getCell(col);
+    cell.font = { name: 'Calibri', size: 10, bold: emphasize };
+    cell.alignment = {
+      vertical: 'middle',
+      horizontal: col === 1 ? 'left' : 'center',
+    };
+    cell.border = {
+      top: { style: 'thin', color: { argb: 'FFBDBDBD' } },
+      left: { style: 'thin', color: { argb: 'FFBDBDBD' } },
+      bottom: { style: 'thin', color: { argb: 'FFBDBDBD' } },
+      right: { style: 'thin', color: { argb: 'FFBDBDBD' } },
+    };
+    if (emphasize) {
+      cell.fill = {
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: 'FFE8F5E9' },
+      };
+    }
+  }
+}
+
+/** Build municipal DA-style paper from DB aggregates (with DA + Rizal logos). */
 export async function generateMunicipalPaper(type: UploadType): Promise<Buffer> {
   const barangays = await prisma.barangay.findMany({ orderBy: { name: 'asc' } });
   const names = barangays.length ? barangays.map((b) => b.name) : BARANGAYS;
+  const asOf = new Date().toLocaleDateString('en-PH', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = 'RiceWatch';
+  workbook.created = new Date();
 
   if (type === 'planting') {
     const reports = await prisma.plantingReport.findMany({ include: { barangay: true } });
-    const aoa: (string | number)[][] = [
-      ['Department of Agriculture'],
-      ['REGIONAL FIELD OFFICE MIMAROPA'],
-      ['Rice Program'],
-      [],
-      ['DRY SEASON 2026 Planting Report — Auto-generated by RiceWatch'],
-      [],
-      ['MUNICIPALITY / BARANGAY', 'NO. OF FARMER PLANTED', 'IRRIGATED (ha)', 'RAINFED (ha)', 'TOTAL PLANTED (ha)'],
+    const sheet = workbook.addWorksheet('DS Cumulative', {
+      views: [{ state: 'frozen', ySplit: 8 }],
+    });
+    const headers = [
+      'MUNICIPALITY / BARANGAY',
+      'NO. OF FARMER PLANTED',
+      'IRRIGATED (ha)',
+      'RAINFED (ha)',
+      'TOTAL PLANTED (ha)',
     ];
-    let tf = 0, ti = 0, tr = 0;
+    await applyExcelBranding(workbook, sheet, {
+      title: 'DRY SEASON 2026 PLANTING REPORT',
+      subtitle: `As of ${asOf} · Auto-generated by RiceWatch`,
+      columnCount: headers.length,
+    });
+
+    setRowValues(sheet.getRow(8), headers);
+    styleHeaderRow(sheet.getRow(8), headers.length);
+    sheet.columns = [
+      { width: 28 },
+      { width: 18 },
+      { width: 14 },
+      { width: 14 },
+      { width: 16 },
+    ];
+
+    let tf = 0;
+    let ti = 0;
+    let tr = 0;
     const munRows: (string | number)[][] = [];
     for (const name of names) {
       const rows = reports.filter((r) => r.barangay.name === name);
       const farmers = rows.reduce((s, r) => s + r.farmerCount, 0);
-      const irrigated = rows.filter((r) => r.irrigationType === 'Irrigated').reduce((s, r) => s + r.areaPlanted, 0);
-      const rainfed = rows.filter((r) => r.irrigationType !== 'Irrigated').reduce((s, r) => s + r.areaPlanted, 0);
+      const irrigated = rows
+        .filter((r) => r.irrigationType === 'Irrigated')
+        .reduce((s, r) => s + r.areaPlanted, 0);
+      const rainfed = rows
+        .filter((r) => r.irrigationType !== 'Irrigated')
+        .reduce((s, r) => s + r.areaPlanted, 0);
       const total = irrigated + rainfed;
       if (total <= 0 && farmers <= 0) continue;
-      tf += farmers; ti += irrigated; tr += rainfed;
+      tf += farmers;
+      ti += irrigated;
+      tr += rainfed;
       munRows.push([name, farmers, round2(irrigated), round2(rainfed), round2(total)]);
     }
-    aoa.push(['Rizal', tf, round2(ti), round2(tr), round2(ti + tr)], ...munRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'DS Cumulative');
-    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+
+    let rowNum = 9;
+    setRowValues(sheet.getRow(rowNum), ['Rizal', tf, round2(ti), round2(tr), round2(ti + tr)]);
+    styleDataRow(sheet.getRow(rowNum), headers.length, true);
+    rowNum += 1;
+    for (const values of munRows) {
+      setRowValues(sheet.getRow(rowNum), values);
+      styleDataRow(sheet.getRow(rowNum), headers.length);
+      rowNum += 1;
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 
   if (type === 'harvest') {
     const reports = await prisma.harvestReport.findMany({ include: { barangay: true } });
-    const aoa: (string | number)[][] = [
-      ['Department of Agriculture'],
-      ['REGIONAL FIELD OFFICE MIMAROPA'],
-      ['Rice Program'],
-      [],
-      ['DRY SEASON 2026 Harvesting Report — Auto-generated by RiceWatch'],
-      [],
-      [
-        'MUNICIPALITY / BARANGAY',
-        'IRRIGATED AREA (ha)',
-        'IRRIGATED PRODUCTION (mt)',
-        'IRRIGATED YIELD (mt/ha)',
-        'RAINFED AREA (ha)',
-        'RAINFED PRODUCTION (mt)',
-        'RAINFED YIELD (mt/ha)',
-        'TOTAL AREA (ha)',
-        'TOTAL PRODUCTION (mt)',
-      ],
+    const sheet = workbook.addWorksheet('Cumulative', {
+      views: [{ state: 'frozen', ySplit: 8 }],
+    });
+    const headers = [
+      'MUNICIPALITY / BARANGAY',
+      'IRRIGATED AREA (ha)',
+      'IRRIGATED PRODUCTION (mt)',
+      'IRRIGATED YIELD (mt/ha)',
+      'RAINFED AREA (ha)',
+      'RAINFED PRODUCTION (mt)',
+      'RAINFED YIELD (mt/ha)',
+      'TOTAL AREA (ha)',
+      'TOTAL PRODUCTION (mt)',
     ];
-    let tiA = 0, tiP = 0, trA = 0, trP = 0;
+    await applyExcelBranding(workbook, sheet, {
+      title: 'DRY SEASON 2026 HARVESTING REPORT',
+      subtitle: `As of ${asOf} · Auto-generated by RiceWatch`,
+      columnCount: headers.length,
+    });
+
+    setRowValues(sheet.getRow(8), headers);
+    styleHeaderRow(sheet.getRow(8), headers.length);
+    sheet.columns = [
+      { width: 26 },
+      { width: 14 },
+      { width: 16 },
+      { width: 14 },
+      { width: 14 },
+      { width: 16 },
+      { width: 14 },
+      { width: 14 },
+      { width: 16 },
+    ];
+
+    let tiA = 0;
+    let tiP = 0;
+    let trA = 0;
+    let trP = 0;
     const munRows: (string | number)[][] = [];
     for (const name of names) {
       const rows = reports.filter((r) => r.barangay.name === name);
@@ -467,7 +658,10 @@ export async function generateMunicipalPaper(type: UploadType): Promise<Buffer> 
       const rA = rf.reduce((s, r) => s + r.harvestedArea, 0);
       const rP = rf.reduce((s, r) => s + r.totalProduction, 0);
       if (iA + rA <= 0) continue;
-      tiA += iA; tiP += iP; trA += rA; trP += rP;
+      tiA += iA;
+      tiP += iP;
+      trA += rA;
+      trP += rP;
       munRows.push([
         name,
         round2(iA),
@@ -480,7 +674,9 @@ export async function generateMunicipalPaper(type: UploadType): Promise<Buffer> 
         round2(iP + rP),
       ]);
     }
-    aoa.push([
+
+    let rowNum = 9;
+    setRowValues(sheet.getRow(rowNum), [
       'Rizal',
       round2(tiA),
       round2(tiP),
@@ -490,43 +686,67 @@ export async function generateMunicipalPaper(type: UploadType): Promise<Buffer> 
       trA ? round2(trP / trA) : 0,
       round2(tiA + trA),
       round2(tiP + trP),
-    ], ...munRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Commulative');
-    return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+    ]);
+    styleDataRow(sheet.getRow(rowNum), headers.length, true);
+    rowNum += 1;
+    for (const values of munRows) {
+      setRowValues(sheet.getRow(rowNum), values);
+      styleDataRow(sheet.getRow(rowNum), headers.length);
+      rowNum += 1;
+    }
+
+    const buffer = await workbook.xlsx.writeBuffer();
+    return Buffer.from(buffer);
   }
 
   // standing
   const reports = await prisma.standingCropReport.findMany({ include: { barangay: true } });
   const stages = ['Newly Planted', 'Vegetative', 'Reproductive', 'Maturing'] as const;
-  const aoa: (string | number)[][] = [
-    ['Rice'],
-    ['Standing Crop 2026'],
-    [`as of ${new Date().toLocaleDateString()} — Auto-generated by RiceWatch`],
-    [],
-    [
-      'MUNICIPALITY / BARANGAY',
-      'IR Newly',
-      'IR Vegetative',
-      'IR Reproductive',
-      'IR Maturing',
-      'IR TOTAL',
-      'RF Newly',
-      'RF Vegetative',
-      'RF Reproductive',
-      'RF Maturing',
-      'RF TOTAL',
-      'GRAND TOTAL',
-    ],
+  const sheet = workbook.addWorksheet('Standing Crop', {
+    views: [{ state: 'frozen', ySplit: 8 }],
+  });
+  const headers = [
+    'MUNICIPALITY / BARANGAY',
+    'IR Newly',
+    'IR Vegetative',
+    'IR Reproductive',
+    'IR Maturing',
+    'IR TOTAL',
+    'RF Newly',
+    'RF Vegetative',
+    'RF Reproductive',
+    'RF Maturing',
+    'RF TOTAL',
+    'GRAND TOTAL',
+  ];
+  await applyExcelBranding(workbook, sheet, {
+    title: 'STANDING CROP REPORT 2026',
+    subtitle: `As of ${asOf} · Auto-generated by RiceWatch`,
+    columnCount: headers.length,
+  });
+
+  setRowValues(sheet.getRow(8), headers);
+  styleHeaderRow(sheet.getRow(8), headers.length);
+  sheet.columns = [
+    { width: 26 },
+    { width: 11 },
+    { width: 12 },
+    { width: 13 },
+    { width: 12 },
+    { width: 11 },
+    { width: 11 },
+    { width: 12 },
+    { width: 13 },
+    { width: 12 },
+    { width: 11 },
+    { width: 12 },
   ];
 
-  // Simpler aggregation by sitio tag
   const stageArea = (name: string, sitio: string, stage: string) =>
     reports
       .filter((r) => r.barangay.name === name && r.sitio === sitio && r.cropStage === stage)
       .reduce((s, r) => s + r.area, 0);
 
-  // Also include records with sitio '-' by treating as irrigated if only one bucket
   const stageAreaFlex = (name: string, sitio: string, stage: string) => {
     const exact = stageArea(name, sitio, stage);
     if (exact > 0) return exact;
@@ -538,8 +758,8 @@ export async function generateMunicipalPaper(type: UploadType): Promise<Buffer> 
     return 0;
   };
 
-  let gIr = [0, 0, 0, 0];
-  let gRf = [0, 0, 0, 0];
+  const gIr = [0, 0, 0, 0];
+  const gRf = [0, 0, 0, 0];
   const munRows: (string | number)[][] = [];
   for (const name of names) {
     const ir = stages.map((st) => round2(stageAreaFlex(name, 'Irrigated', st)));
@@ -553,16 +773,24 @@ export async function generateMunicipalPaper(type: UploadType): Promise<Buffer> 
   }
   const gIrT = round2(gIr.reduce((a, b) => a + b, 0));
   const gRfT = round2(gRf.reduce((a, b) => a + b, 0));
-  aoa.push([
+
+  let rowNum = 9;
+  setRowValues(sheet.getRow(rowNum), [
     'Rizal',
     ...gIr.map(round2),
     gIrT,
     ...gRf.map(round2),
     gRfT,
     round2(gIrT + gRfT),
-  ], ...munRows);
+  ]);
+  styleDataRow(sheet.getRow(rowNum), headers.length, true);
+  rowNum += 1;
+  for (const values of munRows) {
+    setRowValues(sheet.getRow(rowNum), values);
+    styleDataRow(sheet.getRow(rowNum), headers.length);
+    rowNum += 1;
+  }
 
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Standing Crop');
-  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' }) as Buffer;
+  const buffer = await workbook.xlsx.writeBuffer();
+  return Buffer.from(buffer);
 }

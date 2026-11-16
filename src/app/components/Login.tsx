@@ -78,13 +78,13 @@ export function Login({ onNavigateToForgotPassword }: LoginProps) {
             <img src={DALogo} alt="DA Logo" style={{ height: 56 }} />
             <img src={RiceWatchLogo} alt="RiceWatch Logo" style={{ height: 56 }} />
           </Box>
-          <Typography variant="h5" fontWeight="bold" color="primary" gutterBottom>
+          <Typography variant="h5" color="primary" gutterBottom sx={{ fontWeight: "bold" }}>
             RiceWatch
           </Typography>
           <Typography variant="body2" color="text.secondary">
             Rice-Based Area Monitoring & Analysis System
           </Typography>
-          <Typography variant="caption" color="text.secondary" display="block">
+          <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
             Department of Agriculture
           </Typography>
         </Box>
@@ -118,14 +118,16 @@ export function Login({ onNavigateToForgotPassword }: LoginProps) {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" aria-label="toggle password">
-                    {showPassword ? <VisibilityOff /> : <Visibility />}
-                  </IconButton>
-                </InputAdornment>
-              ),
+            slotProps={{
+              input: {
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" aria-label="toggle password">
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              },
             }}
           />
 
