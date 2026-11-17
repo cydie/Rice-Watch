@@ -17,6 +17,9 @@
     "db:up": "node scripts/ensure-docker-db.js --wait-only",
     "db:setup": "npm run db:generate --prefix server && npm run db:push --prefix server && npm run db:seed --prefix server",
     "db:ready": "node scripts/ensure-docker-db.js",
+    "db:snapshot": "node scripts/export-db-snapshot.js",
+    "docker:up": "docker compose up --build",
+    "docker:down": "docker compose down",
     "preview": "vite preview"
   },
   "dependencies": {

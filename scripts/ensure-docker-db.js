@@ -127,7 +127,8 @@ async function waitForDockerDesktop() {
 
 function composeUp() {
   console.log('Starting Docker Postgres (ricewatch-db)...');
-  const result = run('docker', ['compose', 'up', '-d'], { stdio: 'inherit' });
+  // Only start Postgres for local `npm run dev`. Full stack: docker compose up --build
+  const result = run('docker', ['compose', 'up', '-d', 'postgres'], { stdio: 'inherit' });
   if (result.status !== 0) {
     fail(
       'Could not start the Postgres container. Open Docker Desktop, wait until it is green, then retry: npm run db:up'

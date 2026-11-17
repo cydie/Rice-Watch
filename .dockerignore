@@ -1,0 +1,15 @@
+**/node_modules
+**/dist
+**/.git
+**/.vscode
+**/desktop
+**/*.md
+!README.md
+desktop
+agent-transcripts
+.env
+server/.env
+server/dist
+scripts/_tmp-*
+*.log
+.DS_Store

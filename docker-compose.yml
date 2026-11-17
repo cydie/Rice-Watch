@@ -1,5 +1,6 @@
-# Postgres for RiceWatch. Docker Desktop must be Running (green).
-# The user, password, and database are created automatically — pgAdmin is not needed.
+# Full RiceWatch stack: Postgres (with bundled data) + API + Web
+# First start on a new laptop loads docker/postgres/init/*.sql into a fresh volume.
+# If you already had an empty/demo volume, reset once: docker compose down -v
 services:
   postgres:
     image: postgres:16-alpine
@@ -13,12 +14,43 @@ services:
       - "5435:5432"
     volumes:
       - ricewatch_pg_data:/var/lib/postgresql/data
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ricewatch -d ricewatch"]
       interval: 5s
       timeout: 5s
       retries: 12
       start_period: 10s
+
+  api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: ricewatch-api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://ricewatch:ricewatch_secret@postgres:5432/ricewatch?schema=public
+      PORT: "4001"
+      JWT_SECRET: ricewatch-dev-jwt-secret-change-in-production
+      CORS_ORIGIN: http://localhost:8080,http://127.0.0.1:8080,http://localhost,http://127.0.0.1
+    ports:
+      - "4001:4001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: /api
+    container_name: ricewatch-web
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - api
 
 volumes:
   ricewatch_pg_data:

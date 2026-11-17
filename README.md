@@ -13,6 +13,39 @@ Rice-Based Area Monitoring & Analysis System for the Department of Agriculture (
 
 ## Quick start
 
+### Option A — Full Docker (recommended for another laptop)
+
+Requires only **Docker Desktop** (Node install optional).
+
+1. Open Docker Desktop and wait until it is **Running** (green).
+2. From the project folder:
+
+```bash
+docker compose up --build
+```
+
+3. Open **http://localhost:8080**
+
+This starts Postgres + API + Web. The first start loads bundled data from `docker/postgres/init/01-ricewatch-data.sql` (farmers, reports, accounts) into a fresh Docker volume.
+
+If the other laptop already ran an older empty/demo database, reset the volume once so the snapshot loads:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+After you add more data on this machine and want it on GitHub for the other laptop:
+
+```bash
+npm run db:snapshot
+git add docker/postgres/init/01-ricewatch-data.sql
+git commit -m "Update RiceWatch database snapshot"
+git push
+```
+
+### Option B — Local Node + Docker Postgres (development)
+
 ### 1. Prerequisites
 
 - Node.js 20+
@@ -57,7 +90,8 @@ If you see `dockerDesktopLinuxEngine ... cannot find the file`, Docker is instal
 
 Docker maps Postgres to host port **5435** (avoids conflict if you already have PostgreSQL on 5432/5433).
 
-- Web: http://localhost:5173  
+- Web (dev): http://localhost:5173  
+- Web (Docker): http://localhost:8080  
 - API: http://localhost:4001/api/health  
 
 ### 5. Desktop app (optional)
